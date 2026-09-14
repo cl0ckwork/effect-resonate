@@ -1,59 +1,28 @@
-# Repository guidance
+# Agent guide
 
-This is the canonical agent instruction file. Root `AGENTS.md` and `CLAUDE.md`
-are tracked symlinks to this file; edit this file rather than either link.
+This is the canonical agent entrypoint. Root `AGENTS.md` and `CLAUDE.md` are
+tracked symlinks to this file; edit this file rather than either link.
 
-This repository uses Effect TypeScript and Resonate. It is a pnpm monorepo; the primary package lives at `packages/core` and is published as `@effect-resonate/core`.
+effect-resonate is a pnpm monorepo for an Effect TypeScript wrapper around the
+Resonate durable execution engine. The primary package is
+`@effect-resonate/core` under `packages/core`.
 
-Do not create additional packages merely to mirror architectural modules. Add a package only when there is a real dependency, runtime, testing, or distribution boundary.
+Read only the guidance relevant to the work:
 
-## Learning more about Effect
+| When working on | Read |
+| --- | --- |
+| Effect code or APIs | `.agents/conventions/effect.md` |
+| Workflows, steps, durable values, or retries | `.agents/conventions/durable-execution.md` |
+| Packages, modules, dependencies, or public exports | `.agents/conventions/repository.md` |
+| Worktrees, direnv, dependencies, or generated agent links | `.agents/conventions/development.md` |
+| Specs, plans, implementation, or review | `.agents/conventions/workflows.md` |
 
-Before writing any Effect code, first read `node_modules/effect/AGENTS.md` completely and follow the links in that file when required.
+Project direction and prior decisions live in:
 
-If an Effect API or concept is unclear, prefer reading `node_modules/effect/src` over guessing from old examples.
+- `docs/BRAINSTORM.md`: current product and execution-model exploration; not an API commitment.
+- `docs/PACKAGING.md`: current package topology and build direction.
+- `docs/RELEASE-BRAINSTORM.md`: release ideas that are not yet wired or binding.
 
-## Resonate execution model
-
-Target `@resonatehq/sdk/async`, not the generator engine.
-
-Keep the execution boundary explicit:
-
-- durable orchestration stays in Resonate workflows (`ctx.run`, `ctx.rpc`, `ctx.sleep`, `ctx.promise`, etc.)
-- arbitrary Effect programs run inside registered steps / activities
-- do not `Effect.runPromise` arbitrary long-lived Effect programs inside a Resonate durable workflow and then continue issuing durable Resonate operations
-
-Treat JSON-compatible values as the default durable data contract. Use runtime schemas at actual trust boundaries and codecs only when a value needs a deliberate persistence / wire representation.
-
-## Package design
-
-`@effect-resonate/core` uses `zshy` and should remain bundler-free. Keep Effect and Resonate as peer dependencies rather than bundling either runtime.
-
-Prefer stable module entrypoints inside core (`Workflow`, `Step`, `ResonateClient`, etc.) over creating npm packages for each module.
-
-## Design bias
-
-Prefer a small wrapper over a parallel workflow framework. Preserve Resonate semantics and expose Effect where it adds concrete value: services, layers, typed failures, resource management, tracing, and integrations.
-
-## Environment contract
-
-A fresh worktree does not contain dependencies or generated tool-specific agent
-links.
-
-- `pnpm run doctor` is a read-only readiness check and prints a repair command for
-  every missing prerequisite.
-- `bash scripts/worktree-up` installs dependencies, repairs generated agent links, and
-  finishes by running the doctor. It is safe to run repeatedly and serializes
-  concurrent setup in the same worktree.
-- `.envrc` only establishes paths, loads optional local environment files, and
-  repairs cheap agent links. After cloning or changing it, the developer must
-  run `direnv allow`.
-
-## Repo-local workflows
-
-- Use `er-spec` to turn ambiguous or cross-cutting feature intent into a
-  reviewable specification under `docs/specs/`.
-- Use `er-plan` to turn an approved specification or concrete request into an
-  executable implementation plan under `docs/plans/`.
-- Use `er-review` to review a working tree, branch, commit, or PR before it is
-  committed or submitted. Select only the reviewer agents relevant to the diff.
+When guidance conflicts, prefer the narrower convention, then the newer explicit
+decision. Update the relevant document when a decision changes instead of adding
+the exception here.
