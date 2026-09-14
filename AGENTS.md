@@ -1,6 +1,8 @@
 # Repository guidance
 
-This repository uses Effect TypeScript and Resonate.
+This repository uses Effect TypeScript and Resonate. It is a pnpm monorepo; the primary package lives at `packages/core` and is published as `@effect-resonate/core`.
+
+Do not create additional packages merely to mirror architectural modules. Add a package only when there is a real dependency, runtime, testing, or distribution boundary.
 
 ## Learning more about Effect
 
@@ -19,6 +21,12 @@ Keep the execution boundary explicit:
 - do not `Effect.runPromise` arbitrary long-lived Effect programs inside a Resonate durable workflow and then continue issuing durable Resonate operations
 
 Treat JSON-compatible values as the default durable data contract. Use runtime schemas at actual trust boundaries and codecs only when a value needs a deliberate persistence / wire representation.
+
+## Package design
+
+`@effect-resonate/core` uses `zshy` and should remain bundler-free. Keep Effect and Resonate as peer dependencies rather than bundling either runtime.
+
+Prefer stable module entrypoints inside core (`Workflow`, `Step`, `ResonateClient`, etc.) over creating npm packages for each module.
 
 ## Design bias
 
