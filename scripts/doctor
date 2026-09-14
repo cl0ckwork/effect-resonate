@@ -68,7 +68,7 @@ fi
 if command -v node >/dev/null 2>&1; then
   ok "Node available ($(node --version))"
 else
-  err "Node is unavailable" "install Node, then run pnpm worktree-up"
+  err "Node is unavailable" "install Node, then run bash scripts/worktree-up"
 fi
 
 expected_pnpm=$(node -p "require('./package.json').packageManager.split('@').at(-1)" 2>/dev/null || true)
