@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Read-only readiness check. Every failure includes its repair command.
+
+set -uo pipefail
+
+wait_for_bootstrap=true
+for arg in "$@"; do
+  case "$arg" in
+    --no-wait) wait_for_bootstrap=false ;;
+    -h|--help)
+      echo "usage: doctor [--no-wait]"
+      exit 0
+      ;;
+    *) echo "doctor: unknown option '$arg'" >&2; exit 2 ;;
+  esac
+done
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "doctor: not inside a git repository" >&2
+  exit 2
+}
+cd "$root" || exit 2
+
+lock=$(git rev-parse --git-path effect-resonate-bootstrap.lock)
+if [[ "$wait_for_bootstrap" == true && -d "$lock" ]]; then
+  waited=0
+  echo "A bootstrap is running in this worktree; waiting for it."
+  while [[ -d "$lock" && $waited -lt 60 ]]; do
+    sleep 2
+    waited=$((waited + 2))
+  done
+  if [[ -d "$lock" ]]; then
+    echo "✗ bootstrap is still running after 60s"
+    echo "  fix: inspect the worktree-up process, then run pnpm run doctor"
+    exit 1
+  fi
+fi
+
+errors=0
+ok() { printf '✓ %s\n' "$1"; }
+err() { printf '✗ %s\n  fix: %s\n' "$1" "$2"; errors=$((errors + 1)); }
+
+[[ -f .agents/AGENTS.md ]] && ok "canonical agent instructions present" || \
+  err ".agents/AGENTS.md is missing" "git restore .agents/AGENTS.md"
+[[ -L AGENTS.md && -f AGENTS.md ]] && ok "AGENTS.md resolves" || \
+  err "AGENTS.md does not resolve to repo instructions" "bash scripts/setup-agent-symlinks.sh"
+[[ -L .claude/skills && -d .claude/skills ]] && ok "Claude skills resolve" || \
+  err ".claude/skills is missing" "bash scripts/setup-agent-symlinks.sh"
+[[ -L .claude/agents && -d .claude/agents ]] && ok "Claude reviewer agents resolve" || \
+  err ".claude/agents is missing" "bash scripts/setup-agent-symlinks.sh"
+[[ -L .codex/skills && -d .codex/skills ]] && ok "Codex skills resolve" || \
+  err ".codex/skills is missing" "bash scripts/setup-agent-symlinks.sh"
+
+if [[ -f skills-lock.json ]]; then
+  invalid_skills=$(node scripts/check-skills.mjs --invalid-names 2>/dev/null)
+  skill_status=$?
+  if [[ $skill_status -eq 0 ]]; then
+    ok "repo-local skills match skills-lock.json"
+  elif [[ $skill_status -eq 1 ]]; then
+    err "repo-local skills missing or modified: ${invalid_skills//$'\n'/ }" "bash scripts/worktree-up"
+  else
+    err "skills-lock.json is malformed or unsupported" "restore skills-lock.json"
+  fi
+else
+  err "skills-lock.json is missing" "restore skills-lock.json, then run bash scripts/worktree-up"
+fi
+
+if command -v node >/dev/null 2>&1; then
+  ok "Node available ($(node --version))"
+else
+  err "Node is unavailable" "install Node, then run pnpm worktree-up"
+fi
+
+expected_pnpm=$(node -p "require('./package.json').packageManager.split('@').at(-1)" 2>/dev/null || true)
+pnpm_version() {
+  (cd / && env npm_config_manage_package_manager_versions=false "$1" --version 2>/dev/null) || true
+}
+
+# Recognize pnpm's native installation even when this non-direnv shell still has
+# an older package-manager shim earlier on PATH.
+for pnpm_home in "${PNPM_HOME:-}" "$HOME/Library/pnpm/bin" "$HOME/.local/share/pnpm"; do
+  if [[ -n "$pnpm_home" && -x "$pnpm_home/pnpm" ]] && \
+    [[ "$(pnpm_version "$pnpm_home/pnpm")" == "$expected_pnpm" ]]; then
+    export PATH="$pnpm_home:$PATH"
+    break
+  fi
+done
+pnpm_command=$(command -v pnpm 2>/dev/null || true)
+actual_pnpm=$([[ -n "$pnpm_command" ]] && pnpm_version "$pnpm_command")
+if [[ -n "$expected_pnpm" && "$actual_pnpm" == "$expected_pnpm" ]]; then
+  ok "pnpm $actual_pnpm matches packageManager"
+else
+  err "pnpm ${actual_pnpm:-unavailable} does not match ${expected_pnpm:-package.json}" \
+    "npx get-pnpm ${expected_pnpm:-next-12}, then reload direnv"
+fi
+
+[[ -d node_modules/.pnpm ]] && ok "workspace dependencies installed" || \
+  err "workspace dependencies are missing" "bash scripts/worktree-up"
+
+[[ -f node_modules/effect/AGENTS.md ]] && ok "Effect source guidance available at the repo root" || \
+  err "root Effect source guidance is missing" "pnpm install"
+
+if (( errors > 0 )); then
+  printf '\n%d readiness error(s).\n' "$errors"
+  exit 1
+fi
+
+echo
+echo "All readiness checks passed."

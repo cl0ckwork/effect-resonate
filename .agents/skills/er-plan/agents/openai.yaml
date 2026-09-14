@@ -1,0 +1,4 @@
+interface:
+  display_name: "Effect Resonate Plan"
+  short_description: "Plan durable wrapper implementation work"
+  default_prompt: "Use $er-plan to produce an implementation-ready plan from this specification or request."

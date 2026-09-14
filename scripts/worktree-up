@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Turn a fresh checkout into a usable effect-resonate development worktree.
+
+set -uo pipefail
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "worktree-up: not inside a git repository" >&2
+  exit 2
+}
+cd "$root" || exit 2
+
+lock=$(git rev-parse --git-path effect-resonate-bootstrap.lock)
+lock_owner="$(hostname):$$:$(date +%s)"
+waited=0
+while ! mkdir "$lock" 2>/dev/null; do
+  started=$(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0)
+  age=$(($(date +%s) - started))
+  existing_owner=$(cat "$lock/owner" 2>/dev/null || true)
+  existing_host=${existing_owner%%:*}
+  existing_rest=${existing_owner#*:}
+  existing_pid=${existing_rest%%:*}
+
+  if [[ -n "$existing_owner" && "$existing_host" == "$(hostname)" && \
+    "$existing_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$existing_pid" 2>/dev/null; then
+    echo "worktree-up: removing lock owned by dead process $existing_pid" >&2
+    rm -rf "$lock"
+    continue
+  fi
+  if [[ -z "$existing_owner" && $age -gt 1800 ]]; then
+    echo "worktree-up: removing abandoned ownerless lock (${age}s old)" >&2
+    rm -rf "$lock"
+    continue
+  fi
+  if (( waited >= 120 )); then
+    echo "worktree-up: another bootstrap still owns $lock" >&2
+    exit 1
+  fi
+  sleep 2
+  waited=$((waited + 2))
+done
+if ! printf '%s\n' "$lock_owner" > "$lock/owner"; then
+  rmdir "$lock" 2>/dev/null || true
+  echo "worktree-up: could not record bootstrap lock ownership" >&2
+  exit 1
+fi
+
+release_lock() {
+  if [[ "$(cat "$lock/owner" 2>/dev/null || true)" == "$lock_owner" ]]; then
+    rm -rf "$lock"
+  fi
+}
+trap release_lock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+failures=0
+run_step() {
+  local label="$1"
+  shift
+  printf '▸ %s\n' "$label"
+  if "$@"; then
+    printf '  ✓ %s\n' "$label"
+  else
+    printf '  ✗ %s\n' "$label" >&2
+    failures=$((failures + 1))
+  fi
+}
+
+run_step "agent configuration" bash scripts/setup-agent-symlinks.sh
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "  ✗ Node unavailable (install the repository's Node toolchain first)" >&2
+  failures=$((failures + 1))
+fi
+
+expected_pnpm=$(node -p "require('./package.json').packageManager.split('@').at(-1)" 2>/dev/null || true)
+pnpm_version() {
+  (cd / && env npm_config_manage_package_manager_versions=false "$1" --version 2>/dev/null) || true
+}
+
+for pnpm_home in "${PNPM_HOME:-}" "$HOME/Library/pnpm/bin" "$HOME/.local/share/pnpm"; do
+  if [[ -n "$pnpm_home" && -x "$pnpm_home/pnpm" ]] && \
+    [[ "$(pnpm_version "$pnpm_home/pnpm")" == "$expected_pnpm" ]]; then
+    export PATH="$pnpm_home:$PATH"
+    break
+  fi
+done
+pnpm_command=$(command -v pnpm 2>/dev/null || true)
+actual_pnpm=$([[ -n "$pnpm_command" ]] && pnpm_version "$pnpm_command")
+
+# pnpm 12 ships as a native binary and currently needs its own installer. Older
+# Corepack and pnpm launchers can unpack it but then try to execute a stale JS
+# entrypoint. get-pnpm is the upstream-supported v12 installer.
+if [[ -n "$expected_pnpm" && "$actual_pnpm" != "$expected_pnpm" ]]; then
+  run_step "pnpm $expected_pnpm toolchain" npx --yes get-pnpm "$expected_pnpm"
+  for pnpm_home in "${PNPM_HOME:-}" "$HOME/Library/pnpm/bin" "$HOME/.local/share/pnpm"; do
+    if [[ -n "$pnpm_home" && -x "$pnpm_home/pnpm" ]] && \
+      [[ "$(pnpm_version "$pnpm_home/pnpm")" == "$expected_pnpm" ]]; then
+      export PATH="$pnpm_home:$PATH"
+      break
+    fi
+  done
+fi
+
+pnpm_command=$(command -v pnpm 2>/dev/null || true)
+actual_pnpm=$([[ -n "$pnpm_command" ]] && pnpm_version "$pnpm_command")
+if [[ -n "$expected_pnpm" && "$actual_pnpm" == "$expected_pnpm" ]]; then
+  run_step "pnpm dependencies" pnpm install
+else
+  echo "  ✗ pnpm $expected_pnpm unavailable after toolchain setup" >&2
+  failures=$((failures + 1))
+fi
+
+run_step "repo-local skills" bash scripts/restore-skills
+
+if (( failures > 0 )); then
+  echo "worktree-up: $failures required step(s) failed" >&2
+  exit 1
+fi
+
+release_lock
+trap - EXIT INT TERM
+exec bash scripts/doctor --no-wait
