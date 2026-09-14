@@ -36,6 +36,9 @@ Build tooling is intentionally bundler-free: `@effect-resonate/core` uses [`zshy
 The repository uses direnv for a cheap, repeatable shell environment and keeps
 AI-agent configuration in the committed `.agents/` directory.
 
+Install Node.js and [direnv](https://direnv.net/) first. The bootstrap installs
+the repository's pinned pnpm version when needed.
+
 ```sh
 direnv allow
 bash scripts/worktree-up
