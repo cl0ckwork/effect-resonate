@@ -18,6 +18,12 @@
       "sourceType": "github",
       "skillPath": "resonate-migrate-from-temporal/SKILL.md",
       "computedHash": "8bcfdb6263445f5dc8483c9906dc7ed09a614da2c68ca16cec82a75b46e235ac"
+    },
+    "resonate-philosophy": {
+      "source": "resonatehq/resonate-skills",
+      "sourceType": "github",
+      "skillPath": "resonate-philosophy/SKILL.md",
+      "computedHash": "1ac44b48d79a816df66b842001285eba7898ebf895d10ccc6396bc9155791203"
     }
   }
 }

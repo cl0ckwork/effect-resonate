@@ -22,4 +22,5 @@ GEMINI.md
 .agents/skills/effect-ts/
 .agents/skills/resonate-async-await-engine-typescript/
 .agents/skills/resonate-migrate-from-temporal/
+.agents/skills/resonate-philosophy/
 .agents/.skill-restore.*/

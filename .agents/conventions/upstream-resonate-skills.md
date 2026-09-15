@@ -1,5 +1,8 @@
 # Upstream Resonate skills
 
+For product and architecture direction, read `resonate-philosophy` for its
+simplicity heuristic, then apply `.agents/conventions/durable-execution.md`.
+
 For ordinary Resonate TypeScript work:
 
 1. Use `resonate-async-await-engine-typescript` for the concrete SDK API.
@@ -14,6 +17,12 @@ Local conventions govern when upstream guidance conflicts. This repository uses
 `@resonatehq/sdk/async`; ignore generator-engine forms such as `yield*`,
 `ctx.beginRun`, and `ctx.beginRpc`. Async fan-out starts eager `ctx.run` calls and
 then awaits them with `Promise.all`.
+
+Treat `resonate-philosophy` as conceptual guidance rather than an API or failure
+semantics reference. In particular, the async engine defaults to no retries, and
+an external side effect can still happen twice when a process fails after the
+effect but before its durable result is recorded. Set retry policy deliberately
+and make such steps idempotent where the external system supports it.
 
 The imported skills describe SDK 0.11.4, while this repository's compatible
 range may resolve a newer patch. Verify uncertain APIs against the installed
