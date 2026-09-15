@@ -1,0 +1,17 @@
+rc: .lefthookrc
+
+pre-commit:
+  parallel: true
+  commands:
+    staged-diff:
+      run: git diff --cached --check
+    typecheck:
+      glob:
+        - "*.ts"
+        - "**/*.ts"
+      run: pnpm typecheck
+
+pre-push:
+  commands:
+    verify:
+      run: pnpm typecheck && pnpm test

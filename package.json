@@ -11,6 +11,7 @@
     "worktree-up": "bash scripts/worktree-up"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.115"
+    "effect": "4.0.0-rc.115",
+    "lefthook": "^2.1.14"
   }
 }

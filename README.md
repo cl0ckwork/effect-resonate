@@ -56,6 +56,10 @@ architecture, and repository-tooling agents. The official `effect-ts` skill is p
 in `skills-lock.json` and restored by worktree bootstrap. Specifications and
 plans are written under `docs/specs/` and `docs/plans/`.
 
+[Lefthook](https://lefthook.dev/) installs with the workspace dependencies. It
+checks staged whitespace and relevant TypeScript changes before commits, then
+runs typechecking and tests before pushes.
+
 ## Status
 
 Brainstorm / pre-implementation.

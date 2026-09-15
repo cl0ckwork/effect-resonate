@@ -100,6 +100,18 @@ fi
 [[ -f node_modules/effect/AGENTS.md ]] && ok "Effect source guidance available at the repo root" || \
   err "root Effect source guidance is missing" "pnpm install"
 
+if [[ -x node_modules/.bin/lefthook ]] && node_modules/.bin/lefthook check-install >/dev/null 2>&1; then
+  ok "Lefthook Git hooks installed"
+else
+  hooks_path=$(git config --get core.hooksPath 2>/dev/null || true)
+  if [[ -n "$hooks_path" ]]; then
+    err "Lefthook Git hooks are missing from configured core.hooksPath ($hooks_path)" \
+      "review existing hooks, then run pnpm lefthook install --force"
+  else
+    err "Lefthook Git hooks are missing" "pnpm lefthook install"
+  fi
+fi
+
 if (( errors > 0 )); then
   printf '\n%d readiness error(s).\n' "$errors"
   exit 1

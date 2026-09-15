@@ -53,6 +53,22 @@ if [[ "\${1:-}" == "--version" ]]; then
 elif [[ "\${1:-}" == "install" ]]; then
   mkdir -p node_modules/.pnpm node_modules/effect
   : > node_modules/effect/AGENTS.md
+  hooks=$(git rev-parse --git-path hooks)
+  mkdir -p "$hooks"
+  for hook in pre-commit pre-push; do
+    printf '#!/bin/sh\\ncall_lefthook run "%s" "$@"\\n' "$hook" > "$hooks/$hook"
+    chmod +x "$hooks/$hook"
+  done
+  mkdir -p node_modules/.bin
+  cat > node_modules/.bin/lefthook <<'LEFTHOOK'
+#!/usr/bin/env bash
+[[ "\${1:-}" == "check-install" ]] || exit 2
+hooks=$(git rev-parse --git-path hooks)
+for hook in pre-commit pre-push; do
+  [[ -x "$hooks/$hook" ]] && grep -q "call_lefthook run \\"$hook\\"" "$hooks/$hook" || exit 1
+done
+LEFTHOOK
+  chmod +x node_modules/.bin/lefthook
 else
   exit 2
 fi
@@ -62,6 +78,30 @@ fi
 }
 
 const skillHash = (contents) => createHash("sha256").update("SKILL.md").update(contents).digest("hex")
+
+const installLefthookFixture = (root) => {
+  const hooks = resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], {
+    cwd: root,
+    encoding: "utf8"
+  }).trim())
+  mkdirSync(hooks, { recursive: true })
+  for (const hook of ["pre-commit", "pre-push"]) {
+    writeFileSync(join(hooks, hook), `#!/bin/sh\ncall_lefthook run "${hook}" "$@"\n`)
+    chmodSync(join(hooks, hook), 0o755)
+  }
+
+  const bin = join(root, "node_modules", ".bin")
+  mkdirSync(bin, { recursive: true })
+  const lefthook = join(bin, "lefthook")
+  writeFileSync(lefthook, `#!/usr/bin/env bash
+[[ "\${1:-}" == "check-install" ]] || exit 2
+hooks=$(git rev-parse --git-path hooks)
+for hook in pre-commit pre-push; do
+  [[ -x "$hooks/$hook" ]] && grep -q "call_lefthook run \\"$hook\\"" "$hooks/$hook" || exit 1
+done
+`)
+  chmodSync(lefthook, 0o755)
+}
 
 const makeSkillsInstallerStub = (root, { interruptSecondMove = false } = {}) => {
   const bin = join(root, "installer-bin")
@@ -150,6 +190,7 @@ const prepareDoctorRepository = ({ pnpmProbeMarker } = {}) => {
   mkdirSync(join(root, "node_modules", "effect"), { recursive: true })
   writeFileSync(join(root, "node_modules", "effect", "AGENTS.md"), "effect\n")
   const pnpmHome = makePnpmStub(root, pnpmProbeMarker)
+  installLefthookFixture(root)
   assert.equal(run(root, "scripts/setup-agent-symlinks.sh").status, 0)
   return { root, pnpmHome }
 }
@@ -170,6 +211,35 @@ test("doctor diagnoses a malformed skills lock", () => {
   assert.equal(result.status, 1)
   assert.match(result.stdout, /skills-lock\.json is malformed or unsupported/)
   assert.match(result.stdout, /1 readiness error/)
+})
+
+test("doctor diagnoses missing Lefthook installation", () => {
+  const { root, pnpmHome } = prepareDoctorRepository()
+  rmSync(join(root, ".git", "hooks", "pre-commit"))
+  const result = run(root, "scripts/doctor", ["--no-wait"], { PNPM_HOME: pnpmHome })
+
+  assert.equal(result.status, 1)
+  assert.match(result.stdout, /Lefthook Git hooks are missing/)
+  assert.match(result.stdout, /pnpm lefthook install/)
+})
+
+test("doctor rejects unrelated executable Git hooks", () => {
+  const { root, pnpmHome } = prepareDoctorRepository()
+  writeFileSync(join(root, ".git", "hooks", "pre-commit"), "#!/usr/bin/env bash\nexit 0\n")
+  const result = run(root, "scripts/doctor", ["--no-wait"], { PNPM_HOME: pnpmHome })
+
+  assert.equal(result.status, 1)
+  assert.match(result.stdout, /Lefthook Git hooks are missing/)
+})
+
+test("doctor preserves a configured hooks path in its Lefthook repair advice", () => {
+  const { root, pnpmHome } = prepareDoctorRepository()
+  execFileSync("git", ["config", "core.hooksPath", ".custom-hooks"], { cwd: root })
+  const result = run(root, "scripts/doctor", ["--no-wait"], { PNPM_HOME: pnpmHome })
+
+  assert.equal(result.status, 1)
+  assert.match(result.stdout, /configured core\.hooksPath \(\.custom-hooks\)/)
+  assert.match(result.stdout, /review existing hooks, then run pnpm lefthook install --force/)
 })
 
 test("doctor detects a locked skill whose contents were modified", () => {
