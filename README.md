@@ -31,6 +31,36 @@ docs/          architecture and design notes
 
 Build tooling is intentionally bundler-free: `@effect-resonate/core` uses [`zshy`](https://github.com/colinhacks/zshy) to compile TypeScript and generate package exports.
 
+## Development setup
+
+The repository uses direnv for a cheap, repeatable shell environment and keeps
+AI-agent configuration in the committed `.agents/` directory.
+
+Install Node.js and [direnv](https://direnv.net/) first. The bootstrap installs
+the repository's pinned pnpm version when needed.
+
+```sh
+direnv allow
+bash scripts/worktree-up
+```
+
+`bash scripts/worktree-up` installs the pinned pnpm toolchain when needed, installs
+workspace dependencies, repairs agent-tool symlinks, and finishes with the
+read-only `pnpm run doctor` readiness check. It is idempotent and serializes
+concurrent setup in the same Git worktree.
+
+Repo-local agent workflows are available as `er-spec` for specifications and
+`er-plan` for implementation plans, and `er-review` for pre-commit or PR review.
+The review workflow has focused durability, correctness, Effect, testing,
+architecture, and repository-tooling agents. The official `effect-ts` skill is pinned
+in `skills-lock.json` alongside Resonate's philosophy, async TypeScript, and
+Temporal migration skills; worktree bootstrap restores all four. Specifications
+and plans are written under `docs/specs/` and `docs/plans/`.
+
+[Lefthook](https://lefthook.dev/) installs with the workspace dependencies. It
+checks staged whitespace and relevant TypeScript changes before commits, then
+runs typechecking and tests before pushes.
+
 ## Status
 
 Brainstorm / pre-implementation.

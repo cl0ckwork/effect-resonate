@@ -1,0 +1,4 @@
+interface:
+  display_name: "Effect Resonate Spec"
+  short_description: "Specify durable Effect and Resonate behavior"
+  default_prompt: "Use $er-spec to define this feature's behavior and durable-execution invariants."

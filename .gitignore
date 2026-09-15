@@ -4,3 +4,23 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+
+# Generated agent-tool views. Canonical configuration lives in .agents/.
+GEMINI.md
+.codex/*
+!.codex/config.toml
+.cursor/commands
+.cursor/skills
+.gemini/commands
+.gemini/skills
+.claude/*
+!.claude/skills
+!.claude/agents
+**/.agents/.combined/
+
+# Third-party repo skills are restored from the committed skills-lock.json.
+.agents/skills/effect-ts/
+.agents/skills/resonate-async-await-engine-typescript/
+.agents/skills/resonate-migrate-from-temporal/
+.agents/skills/resonate-philosophy/
+.agents/.skill-restore.*/

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Restore locked third-party skills through a validated, same-filesystem staging area.
+
+set -uo pipefail
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "restore-skills: not inside a git repository" >&2
+  exit 2
+}
+cd "$root" || exit 2
+
+invalid_skills=$(node scripts/check-skills.mjs --invalid-names 2>/dev/null)
+check_status=$?
+if [[ $check_status -eq 0 ]]; then
+  exit 0
+elif [[ $check_status -ne 1 ]]; then
+  node scripts/check-skills.mjs --invalid-names
+  exit 1
+fi
+
+stage=$(mktemp -d "$root/.agents/.skill-restore.XXXXXX") || exit 1
+swap_destination=""
+swap_backup=""
+cleanup() {
+  status=$?
+  if [[ -n "$swap_backup" && -e "$swap_backup" && ! -e "$swap_destination" ]]; then
+    mv "$swap_backup" "$swap_destination" 2>/dev/null || true
+  fi
+  rm -rf "$stage"
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkdir -p "$stage/.agents/skills"
+cp skills-lock.json "$stage/skills-lock.json"
+
+if ! (cd "$stage" && env CI=true NO_COLOR=1 npm_config_fetch_timeout=60000 \
+  npm_config_fetch_retries=2 SKILLS_CLONE_TIMEOUT_MS=120000 \
+  npx --yes skills@1.5.26 experimental_install); then
+  echo "restore-skills: staged install failed" >&2
+  exit 1
+fi
+
+if ! node scripts/check-skills.mjs --root "$stage"; then
+  echo "restore-skills: staged skills do not match skills-lock.json" >&2
+  exit 1
+fi
+
+while IFS= read -r skill; do
+  [[ -n "$skill" ]] || continue
+  destination="$root/.agents/skills/$skill"
+  backup="$stage/backup-$skill"
+  swap_destination="$destination"
+  swap_backup="$backup"
+  if [[ -e "$destination" ]]; then mv "$destination" "$backup" || exit 1; fi
+  if ! mv "$stage/.agents/skills/$skill" "$destination"; then
+    [[ -e "$backup" ]] && mv "$backup" "$destination"
+    exit 1
+  fi
+  swap_destination=""
+  swap_backup=""
+done <<< "$invalid_skills"
+
+node scripts/check-skills.mjs

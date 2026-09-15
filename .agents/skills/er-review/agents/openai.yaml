@@ -1,0 +1,4 @@
+interface:
+  display_name: "Effect Resonate Review"
+  short_description: "Review durability, Effect, APIs, and tests"
+  default_prompt: "Use $er-review to review the current changes before commit."

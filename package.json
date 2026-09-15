@@ -5,7 +5,13 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test",
-    "check": "pnpm typecheck && pnpm build"
+    "test": "node --test tests/*.test.mjs && pnpm -r --if-present test",
+    "check": "pnpm typecheck && pnpm build",
+    "doctor": "bash scripts/doctor",
+    "worktree-up": "bash scripts/worktree-up"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.115",
+    "lefthook": "^2.1.14"
   }
 }
