@@ -21,6 +21,7 @@ Read only the guidance relevant to the work:
 Project direction and prior decisions live in:
 
 - `docs/BRAINSTORM.md`: current product and execution-model exploration; not an API commitment.
+- `docs/EXECUTION-INSPECTION.md`: future read-only execution graph and observability direction; not an API commitment.
 - `docs/PACKAGING.md`: current package topology and build direction.
 - `docs/RELEASE-BRAINSTORM.md`: release ideas that are not yet wired or binding.
 

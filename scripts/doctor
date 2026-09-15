@@ -39,17 +39,30 @@ fi
 errors=0
 ok() { printf '✓ %s\n' "$1"; }
 err() { printf '✗ %s\n  fix: %s\n' "$1" "$2"; errors=$((errors + 1)); }
+link_matches() {
+  node -e '
+    const fs = require("node:fs")
+    const [link, expected] = process.argv.slice(1)
+    try {
+      process.exit(fs.lstatSync(link).isSymbolicLink() && fs.realpathSync(link) === fs.realpathSync(expected) ? 0 : 1)
+    } catch {
+      process.exit(1)
+    }
+  ' "$1" "$2" 2>/dev/null
+}
 
 [[ -f .agents/AGENTS.md ]] && ok "canonical agent instructions present" || \
   err ".agents/AGENTS.md is missing" "git restore .agents/AGENTS.md"
-[[ -L AGENTS.md && -f AGENTS.md ]] && ok "AGENTS.md resolves" || \
-  err "AGENTS.md does not resolve to repo instructions" "bash scripts/setup-agent-symlinks.sh"
-[[ -L .claude/skills && -d .claude/skills ]] && ok "Claude skills resolve" || \
-  err ".claude/skills is missing" "bash scripts/setup-agent-symlinks.sh"
-[[ -L .claude/agents && -d .claude/agents ]] && ok "Claude reviewer agents resolve" || \
-  err ".claude/agents is missing" "bash scripts/setup-agent-symlinks.sh"
-[[ -L .codex/skills && -d .codex/skills ]] && ok "Codex skills resolve" || \
-  err ".codex/skills is missing" "bash scripts/setup-agent-symlinks.sh"
+link_matches AGENTS.md .agents/AGENTS.md && ok "AGENTS.md targets canonical instructions" || \
+  err "AGENTS.md does not target canonical repo instructions" "bash scripts/setup-agent-symlinks.sh"
+link_matches CLAUDE.md .agents/AGENTS.md && ok "CLAUDE.md targets canonical instructions" || \
+  err "CLAUDE.md does not target canonical repo instructions" "bash scripts/setup-agent-symlinks.sh"
+link_matches .claude/skills .agents/skills && ok "Claude skills target canonical skills" || \
+  err ".claude/skills does not target canonical skills" "bash scripts/setup-agent-symlinks.sh"
+link_matches .claude/agents .agents/agents && ok "Claude reviewer agents target canonical agents" || \
+  err ".claude/agents does not target canonical reviewer agents" "bash scripts/setup-agent-symlinks.sh"
+link_matches .codex/skills .agents/skills && ok "Codex skills target canonical skills" || \
+  err ".codex/skills does not target canonical skills" "bash scripts/setup-agent-symlinks.sh"
 
 if [[ -f skills-lock.json ]]; then
   invalid_skills=$(node scripts/check-skills.mjs --invalid-names 2>/dev/null)

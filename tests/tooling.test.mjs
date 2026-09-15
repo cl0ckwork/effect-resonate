@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { execFileSync, spawnSync } from "node:child_process"
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -201,6 +201,19 @@ test("doctor succeeds for a ready repository", () => {
 
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.match(result.stdout, /All readiness checks passed/)
+})
+
+test("doctor rejects instruction links that resolve to the wrong target", () => {
+  for (const link of ["AGENTS.md", "CLAUDE.md"]) {
+    const { root, pnpmHome } = prepareDoctorRepository()
+    writeFileSync(join(root, "unrelated.md"), "unrelated instructions\n")
+    rmSync(join(root, link))
+    symlinkSync("unrelated.md", join(root, link))
+    const result = run(root, "scripts/doctor", ["--no-wait"], { PNPM_HOME: pnpmHome })
+
+    assert.equal(result.status, 1)
+    assert.match(result.stdout, new RegExp(`${link.replace(".", "\\.")} does not target canonical repo instructions`))
+  }
 })
 
 test("doctor diagnoses a malformed skills lock", () => {
