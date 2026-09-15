@@ -53,8 +53,9 @@ Repo-local agent workflows are available as `er-spec` for specifications and
 `er-plan` for implementation plans, and `er-review` for pre-commit or PR review.
 The review workflow has focused durability, correctness, Effect, testing,
 architecture, and repository-tooling agents. The official `effect-ts` skill is pinned
-in `skills-lock.json` and restored by worktree bootstrap. Specifications and
-plans are written under `docs/specs/` and `docs/plans/`.
+in `skills-lock.json` alongside Resonate's async TypeScript and Temporal migration
+skills; worktree bootstrap restores all three. Specifications and plans are
+written under `docs/specs/` and `docs/plans/`.
 
 [Lefthook](https://lefthook.dev/) installs with the workspace dependencies. It
 checks staged whitespace and relevant TypeScript changes before commits, then

@@ -12,6 +12,7 @@ Read only the guidance relevant to the work:
 | When working on | Read |
 | --- | --- |
 | Effect code or APIs | `.agents/conventions/effect.md` |
+| Resonate SDK APIs or Temporal migration | `.agents/conventions/upstream-resonate-skills.md` |
 | Workflows, steps, durable values, or retries | `.agents/conventions/durable-execution.md` |
 | Packages, modules, dependencies, or public exports | `.agents/conventions/repository.md` |
 | Worktrees, direnv, dependencies, or generated agent links | `.agents/conventions/development.md` |

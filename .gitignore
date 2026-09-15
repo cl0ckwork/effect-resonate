@@ -20,4 +20,6 @@ GEMINI.md
 
 # Third-party repo skills are restored from the committed skills-lock.json.
 .agents/skills/effect-ts/
+.agents/skills/resonate-async-await-engine-typescript/
+.agents/skills/resonate-migrate-from-temporal/
 .agents/.skill-restore.*/
