@@ -6,7 +6,7 @@ Status: current direction; revisit when the first package is ready to publish.
 
 Use `@effect-resonate/*` for published packages.
 
-The initial and only package is:
+The foundational package is:
 
 ```text
 @effect-resonate/core
@@ -14,15 +14,19 @@ The initial and only package is:
 
 Do not use the `@effect/*` scope; that would imply official ownership by the Effect project.
 
-## Monorepo from day one, one package until justified
+## Monorepo from day one, packages at real boundaries
 
 The repository is a pnpm workspace so future runtime/testing integrations can be added without renaming the core package or migrating repository structure later.
 
 ```text
 packages/
-  core/       @effect-resonate/core
-examples/     workspace consumers / integration examples
-docs/         architecture notes
+  core/              @effect-resonate/core
+  network-postgres/  @effect-resonate/network-postgres
+  testing/           @effect-resonate/testing (private initially)
+apps/
+  postgres-e2e/      private runtime composition for Postgres acceptance
+examples/            workspace consumers / integration examples
+docs/                architecture notes
 ```
 
 Being a monorepo is not a reason to split modules into packages. `Workflow`, `Step`, `ResonateClient`, `Network`, and similar concepts should remain module entrypoints inside `@effect-resonate/core`.
@@ -34,7 +38,25 @@ Create another npm package only when there is a concrete boundary such as:
 - testing-only functionality that should not ship with production code;
 - a package that is independently useful/versionable.
 
-Likely future candidates are `@effect-resonate/testing` and provider/runtime-specific integrations if they grow beyond thin wrappers.
+The first justified boundaries are:
+
+- `@effect-resonate/core` owns the provider-neutral programming model,
+  lifecycle, adapters, and `ResonateNetwork` contract. It has no knowledge of
+  Postgres, `pg`, provider configuration, or provider fixtures.
+- `@effect-resonate/network-postgres` owns the official
+  `@resonatehq/sdk/postgres` adapter, its Effect Layer and configuration, and
+  the `pg` dependency boundary. Other networks should follow the same
+  composition shape rather than requiring changes in core.
+- `@effect-resonate/testing` is private initially and owns reusable black-box
+  network conformance and recovery scenarios. Production packages do not ship
+  those scenarios.
+- `apps/postgres-e2e` is a private composition root for runtime acceptance. It
+  wires core, the Postgres provider, the shared scenarios, IntegreSQL, schema
+  fixtures, worker processes, and CI orchestration.
+
+Keep provider unit tests with their provider package. Put cross-package runtime
+evaluation in an app rather than teaching core about the first supported
+network.
 
 ## Build model
 
@@ -48,7 +70,13 @@ Goals:
 - preserve module boundaries for consumer tree-shaking;
 - do not bundle Effect or Resonate.
 
-`effect` and `@resonatehq/sdk` are peer dependencies and are also installed as development dependencies for local compilation/testing.
+`effect` and `@resonatehq/sdk` are peer dependencies of core and are also
+installed as development dependencies for local compilation/testing.
+
+The Postgres network package declares core, Effect, Resonate, and `pg` as peer
+dependencies and installs them for development. Consumers select and install
+the provider explicitly. Installing or importing core never loads or resolves
+Postgres code or `pg`.
 
 The initial `zshy` export map only exposes the root entrypoint. Add stable subpath exports such as `./Workflow` and `./Step` as those modules become real public APIs rather than publishing placeholder entrypoints.
 

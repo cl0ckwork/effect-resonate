@@ -41,7 +41,7 @@ Conceptually:
 ```ts
 Layer.Layer<
   ResonateClient,
-  ResonateClientError,
+  CoreExecutionError,
   ResonateNetwork
 >
 ```
@@ -60,10 +60,20 @@ Conceptually:
 class ResonateNetwork extends Context.Service<
   ResonateNetwork,
   {
-    readonly network: Network
+    readonly make: (
+      deliver: DeliveryCallback,
+    ) => Effect.Effect<CompatibleSdkNetwork, ResonateNetworkError>
   }
 >()("@effect-resonate/core/ResonateNetwork") {}
 ```
+
+`CompatibleSdkNetwork` is derived from the public async `Resonate` constructor
+option rather than imported from an unexported SDK module. Provider Layers store
+a construction factory and sanitized error mapping, not an already-started or
+provider-scoped network. The factory does not register its own finalizer. Core
+arms a once-only raw-network finalizer immediately after construction, then
+disarms it when ownership transfers to the Resonate instance. Core owns the one
+initialization, delivery gate, drain, stop, and release sequence.
 
 Network modules provide implementations of this service.
 
@@ -81,26 +91,36 @@ Each provides `ResonateNetwork`.
 
 ## ResonateClient service
 
-`ResonateClient` is the Effect-facing API used by applications to start, inspect, and interact with durable workflows.
+`ResonateClient` is the Effect-facing API used by applications to start, inspect,
+settle external promises for, and interact with durable workflows.
 
-Its constructor reads `ResonateNetwork` from the Effect context and constructs the underlying Resonate SDK instance.
+Its scoped constructor reads `ResonateNetwork` from the Effect context and owns
+the complete runtime/network lifecycle.
 
 Conceptually:
 
 ```ts
 const make = Effect.gen(function* () {
-  const { network } = yield* ResonateNetwork
+  const provider = yield* ResonateNetwork
+  const runtime = yield* acquireApplicationRuntime
+  const gate = yield* makeDeliveryGate(runtime)
+  const network = yield* provider.make(gate.deliver)
+  const ownership = yield* ownNetworkUntilResonate(network)
+  const resonate = yield* initializeOnce(network, gate)
+  yield* ownership.transferTo(resonate)
 
-  const resonate = new Resonate({ network })
-
-  yield* Effect.addFinalizer(() =>
-    Effect.promise(() => resonate.stop())
-  )
+  yield* Effect.addFinalizer(() => releaseInOrder({
+    gate,
+    resonate,
+    runtime,
+  }))
 
   return {
     run: ...,
-    get: ...,
-    resolve: ...,
+    attach: ...,
+    resolvePromise: ...,
+    rejectPromise: ...,
+    cancelPromise: ...,
   }
 })
 
@@ -113,6 +133,12 @@ export const layer = Layer.scoped(
 The resulting Layer still requires `ResonateNetwork`.
 
 The application satisfies that dependency using normal Effect composition.
+The drain timeout bounds only the graceful wait. After it expires, core fences
+durable completion and requests interruption, then calls `Resonate.stop()` as
+the single owner of heartbeat/network shutdown so lease recovery can begin. It
+does not dispose the application runtime until admitted adapter promises and
+their finalizers settle. A separate once-only network finalizer is armed only
+during partial acquisition before the Resonate instance takes ownership.
 
 ---
 
@@ -122,7 +148,7 @@ Direct PostgreSQL execution should look like ordinary Layer composition:
 
 ```ts
 import { Config, Effect, Layer } from "effect"
-import * as PostgresNetwork from "@effect-resonate/core/PostgresNetwork"
+import * as PostgresNetwork from "@effect-resonate/network-postgres"
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 
 const PostgresResonate =
@@ -269,16 +295,17 @@ This principle should extend beyond the Resonate transport.
 A step may naturally require normal application services:
 
 ```ts
-const ChargeCard = Step.make(
-  "payments.charge",
-  (input: ChargeInput) =>
+const ChargeCard = Step.make({
+  name: "payments.charge",
+  version: 1,
+  execute: (input: ChargeInput) =>
     Effect.gen(function* () {
       const payments = yield* Payments
       const tracer = yield* Tracer
 
       return yield* payments.charge(input)
     }),
-)
+})
 ```
 
 Its Effect already communicates its requirements:

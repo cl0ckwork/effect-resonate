@@ -2,7 +2,7 @@
 
 An Effect-native TypeScript integration for [Resonate](https://resonatehq.io/) durable execution.
 
-The repository is a lightweight pnpm monorepo. The initial and only publishable package is:
+The repository is a lightweight pnpm monorepo. Its foundational package is:
 
 - [`@effect-resonate/core`](./packages/core) — the Effect/Resonate integration primitives.
 
@@ -18,15 +18,27 @@ The intended split is simple:
 
 The wrapper targets Resonate's `@resonatehq/sdk/async` engine. Effect generators stay inside Effect programs; Resonate durable workflows use normal `async` / `await`.
 
-See [`docs/BRAINSTORM.md`](./docs/BRAINSTORM.md) for the current architecture direction.
+The first approved implementation keeps the core network-neutral and adds a
+separate Postgres provider package. Start with the
+[specification](./docs/specs/2026-09-15-001-core-async-postgres-spec.md) and
+[implementation plan](./docs/plans/2026-09-15-001-feat-core-async-postgres-plan.md).
+Supporting design notes cover the broader [architecture direction](./docs/BRAINSTORM.md),
+[Effect dependency graph](./docs/DEPENDENCY-GRAPH.md),
+[package topology](./docs/PACKAGING.md), future
+[execution inspection](./docs/EXECUTION-INSPECTION.md), and
+[release direction](./docs/RELEASE-BRAINSTORM.md).
 
 ## Workspace
 
 ```text
 packages/
-  core/        @effect-resonate/core
-examples/      integration examples as workspace consumers (when added)
-docs/          architecture and design notes
+  core/              @effect-resonate/core
+  network-postgres/  @effect-resonate/network-postgres (planned)
+  testing/           private conformance support (planned)
+apps/
+  postgres-e2e/      private runtime acceptance app (planned)
+examples/            workspace consumers / integration examples (when added)
+docs/                specifications, plans, and design notes
 ```
 
 Build tooling is intentionally bundler-free: `@effect-resonate/core` uses [`zshy`](https://github.com/colinhacks/zshy) to compile TypeScript and generate package exports.

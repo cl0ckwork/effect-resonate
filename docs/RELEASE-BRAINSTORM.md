@@ -116,15 +116,15 @@ Prefer Effect-style stable subpath entrypoints rather than making the root barre
 For example:
 
 ```ts
-import * as Workflow from "effect-resonate/Workflow"
-import * as Step from "effect-resonate/Step"
-import * as Network from "effect-resonate/Network"
+import * as Workflow from "@effect-resonate/core/Workflow"
+import * as Step from "@effect-resonate/core/Step"
+import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"
 ```
 
 The root entrypoint can still re-export common pieces:
 
 ```ts
-import { Workflow, Step } from "effect-resonate"
+import { Workflow, Step } from "@effect-resonate/core"
 ```
 
 But the root should not become a dependency magnet.
@@ -149,10 +149,10 @@ Use **Changesets**.
 Even though the repo is initially a single package, this gives us a clean path if the project later grows into multiple packages, for example:
 
 ```text
-effect-resonate
-@effect-resonate/postgres
+@effect-resonate/core
+@effect-resonate/network-postgres
 @effect-resonate/testing
-@effect-resonate/aws
+@effect-resonate/network-http
 ```
 
 Expected flow:
@@ -233,8 +233,8 @@ test/fixtures/
 Each fixture should install a package created with `pnpm pack` and verify representative imports such as:
 
 ```ts
-import * as Workflow from "effect-resonate/Workflow"
-import * as Step from "effect-resonate/Step"
+import * as Workflow from "@effect-resonate/core/Workflow"
+import * as Step from "@effect-resonate/core/Step"
 ```
 
 This validates the actual published artifact, not just the source tree.

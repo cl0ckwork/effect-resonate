@@ -83,6 +83,7 @@ A `Step` wraps normal Effect business logic.
 ```ts
 const ChargeCard = Step.make({
   name: "payments.charge",
+  version: 1,
 
   execute: (input: ChargeCardInput) =>
     Effect.gen(function* () {
@@ -109,8 +110,10 @@ Conceptually:
 ```ts
 resonate.register(
   ChargeCard.name,
-  async (_ctx, input) =>
-    runtime.runPromise(ChargeCard.execute(input)),
+  async (_ctx, input) => {
+    const exit = await runtime.runPromiseExit(ChargeCard.execute(input))
+    return encodeStepExit(exit) // one Fail -> Failure; defect/interruption reject
+  },
 )
 ```
 
@@ -123,21 +126,33 @@ A workflow remains ordinary Resonate durable orchestration.
 ```ts
 const Checkout = Workflow.make({
   name: "checkout",
+  version: 1,
   input: CheckoutInput,
+  success: CheckoutResult,
+  failure: CheckoutFailure,
 
   execute: async (ctx, input) => {
     const payment = await ctx.run(ChargeCard, {
       amount: input.total,
       token: input.paymentToken,
     })
+    if (Result.isFailure(payment)) {
+      return Result.fail(payment.failure)
+    }
 
     await ctx.sleep(1_000)
 
     const fulfillment = await ctx.rpc(FulfillOrder, {
       orderId: input.orderId,
     })
+    if (Result.isFailure(fulfillment)) {
+      return Result.fail(fulfillment.failure)
+    }
 
-    return { payment, fulfillment }
+    return Result.succeed({
+      payment: payment.success,
+      fulfillment: fulfillment.success,
+    })
   },
 })
 ```
@@ -325,7 +340,8 @@ Exact codec API is intentionally unresolved.
 
 Resonate already exposes a `Network` abstraction. The wrapper should reuse it rather than reimplementing protocol behavior.
 
-Provide Effect Layers for common Resonate networks, for example:
+Keep the network contract in core and provide Effect Layers from separate
+provider packages, for example:
 
 ```text
 ResonateNetwork
@@ -339,17 +355,22 @@ Conceptually:
 
 ```ts
 const Dev = ResonateClient.layer.pipe(
-  Layer.provide(ResonateNetwork.layerLocal),
+  Layer.provide(LocalNetwork.layer),
 )
 
 const Production = ResonateClient.layer.pipe(
   Layer.provide(
-    ResonateNetwork.layerPostgres({ connectionString }),
+    PostgresNetwork.layer({ connectionString }),
   ),
 )
 ```
 
-For Postgres, prefer wrapping Resonate's official network implementation first. Do not rewrite protocol correctness logic in `@effect/sql` merely to make the internals look more Effect-like.
+For Postgres, `@effect-resonate/network-postgres` wraps Resonate's official
+network implementation. Core must not import that package, expose Postgres
+symbols, or branch on provider details. Do not rewrite protocol correctness
+logic in `@effect/sql` merely to make the internals look more Effect-like.
+The conceptual `LocalNetwork` and other providers follow the same external
+package boundary; none is a static constructor on core's service contract.
 
 ---
 
