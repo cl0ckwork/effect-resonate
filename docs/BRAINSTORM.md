@@ -188,16 +188,13 @@ The workflow API should stay visually close to Resonate rather than hiding durab
 Outside the durable workflow world, applications should get an Effect service:
 
 ```ts
-const program = Effect.gen(function* () {
-  const resonate = yield* ResonateClient
-
-  const result = yield* resonate.run(
-    Checkout,
-    `checkout:${order.id}`,
-    input,
-  )
-
-  return result
+const program = Effect.gen(function*() {
+  const handle = yield* ResonateClient.run({
+    workflow: Checkout,
+    id: `checkout:${order.id}`,
+    input
+  })
+  return yield* handle.result()
 })
 ```
 
@@ -360,15 +357,22 @@ ResonateNetwork
 Conceptually:
 
 ```ts
-const Dev = ResonateClient.layer.pipe(
-  Layer.provide(LocalNetwork.layer),
-)
+const ClientLive = ResonateClient.layer({
+  functions: CheckoutFunctions,
+  drainTimeout: Duration.seconds(30)
+})
 
-const Production = ResonateClient.layer.pipe(
-  Layer.provide(
-    PostgresNetwork.layer({ connectionString }),
-  ),
-)
+const Dev = ClientLive.pipe(Layer.provide([
+  CheckoutLive,
+  ChargeCardLive,
+  LocalNetwork.layer
+]))
+
+const Production = ClientLive.pipe(Layer.provide([
+  CheckoutLive,
+  ChargeCardLive,
+  PostgresNetwork.layer({ connectionString })
+]))
 ```
 
 For Postgres, `@effect-resonate/network-postgres` wraps Resonate's official

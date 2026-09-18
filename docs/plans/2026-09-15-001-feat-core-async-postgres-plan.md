@@ -2,6 +2,10 @@
 
 Source: `docs/specs/2026-09-15-001-core-async-postgres-spec.md`
 
+> The U4 client/context API names in this original plan are superseded by
+> [`2026-09-18-001-refactor-resonate-api-parity-plan.md`](./2026-09-18-001-refactor-resonate-api-parity-plan.md).
+> Resonate's async SDK surface is canonical; schema-aware APIs are additive.
+
 ## Summary
 
 Implement the first public `@effect-resonate/core` API as inert `Step` and
@@ -95,7 +99,7 @@ a valid identity-bearing envelope; and release creates no new durable outcome.
 ```text
 Effect caller
   -> Workflow input decode + encode
-  -> ResonateClient.run(id, exact workflow version)  [activation may commit]
+  -> ResonateClient.run({ id, workflow: exact version, input })  [activation may commit]
   -> gated SDK Network -> selected provider
   -> workflow adapter: tuple check -> schema decode -> async workflow body
        -> WorkflowContext.run/rpc(exact Step version)
@@ -201,7 +205,9 @@ gated official Network, registers all exact versions, awaits network readiness,
 then opens delivery and exposes the client service. The same state machine makes release
 idempotent and fences late completions. A semaphore makes admission plus fiber
 registration atomic with closing the supervisor, so draining cannot miss an
-accepted step.
+accepted step. Module-level `run`, `attach`, `resolvePromise`, `rejectPromise`,
+and `cancelPromise` accessors retrieve the scoped service from the Effect
+context while preserving its environment requirement.
 
 The drain duration is a grace-period bound, not a promise that arbitrary user
 code or its finalizers can be forcibly terminated. After expiry, core fences

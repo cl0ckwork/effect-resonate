@@ -1,41 +1,27 @@
+import type {
+  AnyFunc,
+  Context as ResonateContext,
+  DetachedHandle as ResonateDetachedHandle,
+  DurablePromise as ResonateDurablePromise,
+  Info,
+  RetryPolicy as ResonateRetryPolicy
+} from "@resonatehq/sdk/async"
 import type { Result, Schema } from "effect"
 import type { Type as DurableValue } from "./DurableValue.js"
 import type * as Step from "./Step.js"
+import type * as Workflow from "./Workflow.js"
 
-/** SDK-free shape of an eager, replay-aware Resonate operation. */
-export interface DurablePromise<out Value> extends Promise<Value> {
-  readonly id: string
-}
+export type DurablePromise<Value> = ResonateDurablePromise<Value>
+export type DetachedHandle = ResonateDetachedHandle
+export type RetryPolicy = ResonateRetryPolicy
 
-export type RetryPolicy =
-  | { readonly _tag: "Never" }
-  | { readonly _tag: "Constant"; readonly delay: number; readonly maxRetries: number }
-  | { readonly _tag: "Linear"; readonly delay: number; readonly maxRetries: number }
-  | {
-    readonly _tag: "Exponential"
-    readonly delay: number
-    readonly factor: number
-    readonly maxRetries: number
-    readonly maxDelay: number
-  }
+type ContextOptions = NonNullable<Parameters<ResonateContext["options"]>[0]>
+type RawPromiseOptions = NonNullable<Parameters<ResonateContext["promise"]>[0]>
 
-/** Options visible at each child invocation; definition versions are always supplied by the wrapper. */
-export interface InvocationOptions {
-  readonly timeout?: number
-  readonly target?: string
-  readonly tags?: Readonly<Record<string, string>>
-  readonly retry?: RetryPolicy
-}
-
-export type SleepOptions =
-  | { readonly for: number; readonly until?: never }
-  | { readonly until: number; readonly for?: never }
-
-export interface PromiseOptions {
-  readonly timeout?: number
-  readonly data?: DurableValue
-  readonly tags?: Readonly<Record<string, string>>
-}
+/** Upstream invocation options, with the exact contract version supplied by a definition. */
+export type InvocationOptions = Omit<ContextOptions, "version">
+export type SleepOptions = Exclude<Parameters<ResonateContext["sleep"]>[0], number>
+export type PromiseOptions = RawPromiseOptions
 
 export type DurableCodec<Value, Encoded extends DurableValue = DurableValue> = Schema.Codec<
   Value,
@@ -44,41 +30,65 @@ export type DurableCodec<Value, Encoded extends DurableValue = DurableValue> = S
   never
 >
 
-/** Durable orchestration surface passed to workflow bodies. */
-export interface WorkflowContext {
-  readonly id: string
-  readonly parentId: string
-  readonly originId: string
-  readonly branchId: string
-  readonly timeoutAt: number
-  readonly attempt: number
-  readonly version: number
-  readonly name: string
+type Params<Func extends AnyFunc> = Func extends (
+  context: infer _Context,
+  ...arguments_: infer Arguments
+) => unknown ? Arguments : never
 
+type ParamsWithOptions<Func extends AnyFunc> = [...Params<Func>, ReturnType<ResonateContext["options"]>?]
+type Return<Func extends AnyFunc> = Awaited<ReturnType<Func>>
+
+/**
+ * Resonate's eager async Context with additive schema-aware definition overloads.
+ * Durable operations intentionally remain eager DurablePromises, not lazy Effects.
+ */
+export interface WorkflowContext extends Info {
+  run<Func extends AnyFunc>(
+    func: Func,
+    ...arguments_: ParamsWithOptions<Func>
+  ): DurablePromise<Return<Func>>
+  run<Value>(func: string, ...arguments_: ReadonlyArray<unknown>): DurablePromise<Value>
   run<Definition extends Step.Any>(
     step: Definition,
     input: Step.Step.Input<Definition>,
     options?: InvocationOptions
   ): DurablePromise<Result.Result<Step.Step.Success<Definition>, Step.Step.Failure<Definition>>>
 
+  rpc<Func extends AnyFunc>(
+    func: Func,
+    ...arguments_: ParamsWithOptions<Func>
+  ): DurablePromise<Return<Func>>
+  rpc<Value>(func: string, ...arguments_: ReadonlyArray<unknown>): DurablePromise<Value>
   rpc<Definition extends Step.Any>(
     step: Definition,
     input: Step.Step.Input<Definition>,
     options?: InvocationOptions
   ): DurablePromise<Result.Result<Step.Step.Success<Definition>, Step.Step.Failure<Definition>>>
 
-  sleep(duration: number | SleepOptions): DurablePromise<void>
+  detached<Func extends AnyFunc>(
+    func: Func,
+    ...arguments_: ParamsWithOptions<Func>
+  ): DurablePromise<DetachedHandle>
+  detached(func: string, ...arguments_: ReadonlyArray<unknown>): DurablePromise<DetachedHandle>
+  detached<Definition extends Workflow.Any>(
+    workflow: Definition,
+    input: Workflow.Workflow.Input<Definition>,
+    options?: InvocationOptions
+  ): DurablePromise<DetachedHandle>
 
+  promise<Value>(options?: PromiseOptions): DurablePromise<Value>
   promise<Value, Encoded extends DurableValue>(
     schema: DurableCodec<Value, Encoded>,
     options?: PromiseOptions
   ): DurablePromise<Value>
 
-  readonly date: {
-    readonly now: () => DurablePromise<number>
-  }
+  sleep(duration: number): DurablePromise<void>
+  sleep(options: SleepOptions): DurablePromise<void>
 
-  readonly math: {
-    readonly random: () => DurablePromise<number>
-  }
+  options(options?: ContextOptions): ReturnType<ResonateContext["options"]>
+  panic(condition: boolean, message?: string): void
+  assert(condition: boolean, message?: string): void
+
+  readonly date: ResonateContext["date"]
+  readonly math: ResonateContext["math"]
 }

@@ -2,8 +2,19 @@
 
 Effect-native primitives for integrating [Effect](https://effect.website/) with [Resonate](https://resonatehq.io/) durable execution.
 
-This package is under active implementation. The approved behavior lives in
-the repository's [`core async/Postgres specification`](../../docs/specs/2026-09-15-001-core-async-postgres-spec.md).
+Use the official [Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
+as the primary API and durability reference. This package preserves the async
+SDK's names and semantics, adding Effect only at the application boundary:
+
+- SDK Promises and throwable synchronous methods become lazy `Effect`s with a
+  typed `ResonateSdkError` channel.
+- `run`, `rpc`, and `get` still return handles; `handle.result()` and
+  `handle.done()` are separate Effects.
+- `promises.*` and `schedules.*` retain the upstream namespaces and records.
+- the client lifecycle is a scoped Layer rather than `new Resonate()` plus
+  manual cleanup.
+- schema-aware workflows and steps are additive overloads, not replacements for
+  raw SDK calls.
 
 The intended split is:
 
@@ -48,9 +59,9 @@ produce the same durable call sequence and options.
 
 ## Client runtime
 
-The function group is the closed contract registry. Implementations and the
-provider network remain ordinary Layer dependencies rather than configuration
-inside the client constructor.
+The function group is an optional closed contract registry. Implementations and
+the provider network remain ordinary Layer dependencies rather than values
+inside client configuration.
 
 ```ts
 class CheckoutFunctions extends ResonateFunctions.make(
@@ -72,10 +83,48 @@ const ResonateLive = ResonateClient.layer({
 )
 ```
 
-`ResonateClient.layer` validates the complete registry before constructing the
-network, waits for network readiness and exact-version registration, and owns
-graceful shutdown. Its `run`, `attach`, and external-promise operations expose
-schema and SDK failures in the Effect error channel.
+`ResonateClient.layer` validates the complete registry before opening the
+network, waits for exact-version registration, and owns graceful shutdown.
+Connection selection and credentials belong to the supplied `ResonateNetwork`
+Layer. Client options include only upstream constructor fields that still apply
+to an injected network (`pid`, `ttl`, logging, and encryption); accepting
+`url`, `group`, `token`, or transport `timeout` here would silently ignore them.
+
+Application code uses module-level accessors. They retrieve the real
+`ResonateClient` service from the Effect context and preserve its requirement in
+the environment channel:
+
+```ts
+const checkout = Effect.gen(function*() {
+  const handle = yield* ResonateClient.run({
+    workflow: Checkout,
+    id: "checkout-123",
+    input: { orderId: "order-123" }
+  })
+
+  return yield* handle.result()
+}).pipe(Effect.provide(ResonateLive))
+```
+
+Raw SDK-style registration and invocation remain available under the same
+names. The only top-level syntax change is a named request object:
+
+```ts
+const raw = Effect.gen(function*() {
+  const greet = yield* ResonateClient.register({
+    name: "greet",
+    func: async (_ctx, name: string) => `hello ${name}`
+  })
+  const handle = yield* greet.run({ id: "greet-1", args: ["Luke"] })
+  return yield* handle.result()
+})
+```
+
+The full async client surface is exposed as `register`, `setDependency`, `run`,
+`rpc`, `get`, `schedule`, `options`, `stop`, `promises.*`, and `schedules.*`.
+Within workflows, `WorkflowContext` keeps the upstream positional API and eager
+`DurablePromise` behavior. It does not insert an Effect runtime into replayed
+workflow code.
 
 The drain timeout applies to admitted Effect step handlers. Resonate owns async
 workflow frames and resumes unfinished durable work through its normal lease and

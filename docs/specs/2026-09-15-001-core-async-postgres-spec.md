@@ -2,6 +2,10 @@
 
 Status: implementation-ready; approval is the merge gate for this planning PR
 
+> The client/context API vocabulary in this original specification is refined
+> by [`2026-09-18-001-resonate-api-parity-spec.md`](./2026-09-18-001-resonate-api-parity-spec.md).
+> The later specification governs method names, namespaces, and handle semantics.
+
 ## Objective
 
 Define the first usable, network-neutral `@effect-resonate/core` programming
@@ -127,7 +131,9 @@ Postgres integration suite; none depends only on logs or manual inspection.
 - One scoped Effect service that owns the Resonate instance, closed registration
   set, captured Effect callback runtime, invocation, input-free attachment by workflow and
   execution ID, external-promise resolution/rejection/cancellation, waiting, and
-  orderly shutdown.
+  orderly shutdown. Module-level operation accessors retrieve that service from
+  the Effect context so ordinary callers do not need to address the service tag
+  through the module namespace.
 - A provider-neutral network service contract in core, plus a separate Postgres
   network Layer around `@resonatehq/sdk/postgres`.
 - A narrow provider-author seam that accepts an SDK-compatible network factory
@@ -254,7 +260,7 @@ This preserves the distinction proposed but left open in
 | W6 | `ChargeCard` returns `PaymentDeclined`; a separate step dies with a `TypeError`. | execute → checked failure → checkpoint → decode / execute → defect → reject | Decline appears in the typed domain channel. The defect appears as `CoreExecutionError` and no false success/failure envelope is persisted. | S2, S3, C4 | SC6 |
 | W7 | A raw/stale invocation contains input that the current workflow schema cannot decode. | decode ingress → invalid input → settle → decode | User code and steps do not run; the execution completes with a sanitized `InvalidWorkflowInput` wrapper error and is not retried as a defect. | S7, S8, C4 | SC6, SC8 |
 | W8 | The application Layer fails, Postgres is unavailable, or the `resonate` schema is missing during startup; in a separate run Postgres drops after activation. | initialize → reject layer / execute → connector failure → recover → replay | Startup cannot report a usable service and rolls back earlier resources. A created invocation is never reported successful because of an outage and can recover after Postgres and a worker return. | S5, S7, L1, L3, C2 | SC6, SC7 |
-| W9 | A client waiting on a durable sleep is interrupted, its deadline becomes due while all workers are stopped, and one worker restarts later. | wait → cancel wait → suspend → wake → reconnect → replay → settle → validate → attach → wait → decode | Caller interruption only stops that wait. Cron settles the deadline without a worker; a fresh runtime uses `attach` without resupplying input and receives the result after a compatible worker returns. | S6, L1, L2, L3, C5 | SC3, SC7 |
+| W9 | A client waiting on a durable sleep is interrupted, its deadline becomes due while all workers are stopped, and one worker restarts later. | wait → cancel wait → suspend → wake → reconnect → replay → settle → get → wait → decode | Caller interruption only stops that wait. Cron settles the deadline without a worker; a fresh runtime uses `get` without resupplying input and receives the result after a compatible worker returns. | S6, L1, L2, L3, C5 | SC3, SC7 |
 | W10 | A workflow awaits a normal timer/I/O promise and then calls `ctx.run`. | execute → non-durable await → pass closes → durable op rejected | **MUST NOT silently continue.** The upstream closed-context guard rejects the late durable operation; tests demonstrate the unsupported pattern. | S1, S3 | SC9 |
 | W11 | `order-42` already belongs to `Checkout` v1 when a caller invokes another workflow, or `Checkout` v2, with that global ID. | validate → attach → wait → identity mismatch → reject | **MUST NOT decode under the second definition.** The stored envelope identity produces a tagged definition conflict and no second root execution. | S3, S4, S8, C1, C4 | SC4, SC8 |
 | W12 | Postgres commits creation of `order-42`, but the activation response is lost. | validate → create → response lost → retry same ID → attach → wait → decode | The first error says activation may have committed and retains `order-42`; a same-definition, same-input retry attaches and observes the one execution. | S4, L1, C1, C5 | SC4, SC6 |
@@ -269,7 +275,7 @@ flowchart TD
   Caller[Effect caller] -->|validate + encode| Client[ResonateClient]
   Client -->|provider-neutral contract| Network[ResonateNetwork]
   Network -->|run: create or attach| PG[(Postgres + resonate schema)]
-  Network -->|attach: lookup only| PG
+  Network -->|get: lookup only| PG
   Client -->|interrupt only local wait| Detached[Durable execution remains]
   PG -->|execute delivery| Gate[Ready registration gate]
   Gate --> Workflow[Workflow adapter]

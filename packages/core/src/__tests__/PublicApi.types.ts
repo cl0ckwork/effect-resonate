@@ -1,5 +1,15 @@
+import type { PromiseRecord, ScheduleRecord, TaskRecord } from "@resonatehq/sdk"
+import {
+  Exponential,
+  type Context as SdkContext,
+  type Resonate as SdkResonate,
+  type ResonateFunc as SdkResonateFunc,
+  type ResonateHandle as SdkResonateHandle,
+  type ResonateSchedule as SdkResonateSchedule
+} from "@resonatehq/sdk/async"
 import { Context, Effect, Layer, Result, Schema } from "effect"
 import {
+  CoreExecutionError,
   ResonateClient,
   ResonateClientService,
   ResonateFunctions,
@@ -140,14 +150,161 @@ const clientRun = client.run({
   input: { sku: "sku-1" }
 })
 type _ClientRunSuccess = Assert<
-  Equal<Effect.Success<typeof clientRun>, { readonly reservationId: string }>
+  Equal<
+    Effect.Success<typeof clientRun>,
+    ResonateClient.ResonateHandle<
+      { readonly reservationId: string },
+      ResonateClient.TypedResultError<typeof Checkout>
+    >
+  >
 >
 type _ClientRunError = Assert<
-  Equal<Effect.Error<typeof clientRun>, ResonateClient.InvocationError<typeof Checkout>>
+  Equal<
+    Effect.Error<typeof clientRun>,
+    CoreExecutionError.InvalidWorkflowInput | CoreExecutionError.ResonateSdkError
+  >
 >
+
+declare const typedHandle: Effect.Success<typeof clientRun>
+const typedResult = typedHandle.result()
+const typedDone = typedHandle.done()
+type _TypedResultSuccess = Assert<
+  Equal<Effect.Success<typeof typedResult>, { readonly reservationId: string }>
+>
+type _TypedResultError = Assert<
+  Equal<Effect.Error<typeof typedResult>, ResonateClient.TypedResultError<typeof Checkout>>
+>
+type _TypedDone = Assert<Equal<Effect.Success<typeof typedDone>, boolean>>
+
+const rawFunction = async (_context: SdkContext, sku: string) => ({ sku })
+const rawRun = client.run({ id: "raw-1", func: rawFunction, args: ["sku-1"] })
+const rawZeroArgumentFunction = async (_context: SdkContext) => "ready"
+const rawZeroArgumentRun = client.run({ id: "raw-zero-1", func: rawZeroArgumentFunction })
+type _RawRunSuccess = Assert<
+  Equal<
+    Effect.Success<typeof rawRun>,
+    ResonateClient.ResonateHandle<{ sku: string }, CoreExecutionError.ResonateSdkError>
+  >
+>
+type _RawRunError = Assert<Equal<Effect.Error<typeof rawRun>, CoreExecutionError.ResonateSdkError>>
+type _RawZeroArgumentRun = Assert<Equal<
+  Effect.Success<typeof rawZeroArgumentRun>,
+  ResonateClient.ResonateHandle<string, CoreExecutionError.ResonateSdkError>
+>>
+
+const rawNamedRun = client.run<{ readonly accepted: boolean }>({
+  id: "raw-named-1",
+  func: "accept",
+  args: [{ requestId: "request-1" }]
+})
+type _RawNamedRun = Assert<
+  Equal<
+    Effect.Success<typeof rawNamedRun>,
+    ResonateClient.ResonateHandle<{ readonly accepted: boolean }, CoreExecutionError.ResonateSdkError>
+  >
+>
+
+const registered = client.register({ name: "inventory.raw", func: rawFunction, options: { version: 2 } })
+type _RegisteredFunction = Assert<
+  Equal<Effect.Success<typeof registered>, ResonateClient.ResonateFunc<typeof rawFunction>>
+>
+
+const rawGet = client.get<number>({ id: "promise-1" })
+type _RawGet = Assert<
+  Equal<Effect.Success<typeof rawGet>, ResonateClient.ResonateHandle<number, CoreExecutionError.ResonateSdkError>>
+>
+
+const typedGet = client.get({ workflow: Checkout, id: "checkout-1" })
+type _TypedGet = Assert<Equal<Effect.Success<typeof typedGet>, Effect.Success<typeof clientRun>>>
+
+const promiseGet = client.promises.get({ id: "promise-1" })
+const promiseCreate = client.promises.create({ id: "promise-1", timeoutAt: 1_000 })
+const promiseCreateWithTask = client.promises.createWithTask({
+  id: "promise-1",
+  timeoutAt: 1_000,
+  pid: "worker-1",
+  ttl: 30_000
+})
+const promiseResolve = client.promises.resolve({ id: "promise-1", options: { data: "e30=" } })
+const typedPromiseResolve = client.promises.resolve({ id: "promise-1", schema: Schema.Number, value: 1 })
+const promiseCallback = client.promises.registerCallback({ awaited: "promise-1", awaiter: "promise-2" })
+const promiseListener = client.promises.registerListener({ awaited: "promise-1", address: "worker-1" })
+type _PromiseGet = Assert<Equal<Effect.Success<typeof promiseGet>, PromiseRecord>>
+type _PromiseCreate = Assert<Equal<Effect.Success<typeof promiseCreate>, PromiseRecord>>
+type _PromiseCreateWithTask = Assert<
+  Equal<Effect.Success<typeof promiseCreateWithTask>, { readonly promise: PromiseRecord; readonly task?: TaskRecord }>
+>
+type _PromiseResolve = Assert<Equal<Effect.Success<typeof promiseResolve>, PromiseRecord>>
+type _PromiseResolveError = Assert<Equal<Effect.Error<typeof promiseResolve>, CoreExecutionError.ResonateSdkError>>
+type _TypedPromiseResolveError = Assert<Equal<
+  Effect.Error<typeof typedPromiseResolve>,
+  CoreExecutionError.DurableProtocolError | CoreExecutionError.ResonateSdkError
+>>
+type _PromiseCallback = Assert<Equal<Effect.Success<typeof promiseCallback>, { readonly promise: PromiseRecord }>>
+type _PromiseListener = Assert<Equal<Effect.Success<typeof promiseListener>, { readonly promise: PromiseRecord }>>
+
+const scheduleCreate = client.schedules.create({
+  id: "schedule-1",
+  cron: "0 * * * *",
+  promiseId: "checkout-{{.timestamp}}",
+  promiseTimeout: 60_000
+})
+const scheduleGet = client.schedules.get({ id: "schedule-1" })
+const scheduleDelete = client.schedules.delete({ id: "schedule-1" })
+type _ScheduleCreate = Assert<Equal<Effect.Success<typeof scheduleCreate>, ScheduleRecord>>
+type _ScheduleGet = Assert<Equal<Effect.Success<typeof scheduleGet>, ScheduleRecord>>
+type _ScheduleDelete = Assert<Equal<Effect.Success<typeof scheduleDelete>, undefined>>
+
+type _ClientSurface = Assert<Equal<keyof ResonateClient.ResonateClientService,
+  | "register"
+  | "setDependency"
+  | "run"
+  | "rpc"
+  | "get"
+  | "schedule"
+  | "options"
+  | "promises"
+  | "schedules"
+  | "stop"
+>>
+type _SdkClientSurface = Assert<Equal<keyof ResonateClient.ResonateClientService, keyof SdkResonate>>
+type _PromiseSurface = Assert<Equal<keyof ResonateClient.PromisesService, keyof SdkResonate["promises"]>>
+type _ScheduleSurface = Assert<Equal<keyof ResonateClient.SchedulesService, keyof SdkResonate["schedules"]>>
+type _HandleSurface = Assert<Equal<
+  keyof ResonateClient.ResonateHandle<unknown>,
+  keyof SdkResonateHandle<unknown>
+>>
+type _RegisteredFunctionSurface = Assert<Equal<
+  keyof ResonateClient.ResonateFunc<typeof rawFunction>,
+  keyof SdkResonateFunc<typeof rawFunction>
+>>
+type _ScheduleHandleSurface = Assert<Equal<keyof ResonateClient.ResonateSchedule, keyof SdkResonateSchedule>>
+
+const accessorRun = ResonateClient.run({
+  workflow: Checkout,
+  id: "checkout-accessor-1",
+  input: { sku: "sku-1" }
+})
+type _AccessorRunSuccess = Assert<Equal<Effect.Success<typeof accessorRun>, Effect.Success<typeof clientRun>>>
+type _AccessorRunError = Assert<Equal<Effect.Error<typeof accessorRun>, Effect.Error<typeof clientRun>>>
+type _AccessorRunRequirement = Assert<Equal<Effect.Services<typeof accessorRun>, ResonateClientService>>
+
+const accessorPromise = ResonateClient.promises.get({ id: "promise-1" })
+const accessorSchedule = ResonateClient.schedules.get({ id: "schedule-1" })
+type _AccessorPromiseRequirement = Assert<Equal<Effect.Services<typeof accessorPromise>, ResonateClientService>>
+type _AccessorScheduleRequirement = Assert<Equal<Effect.Services<typeof accessorSchedule>, ResonateClientService>>
+
+// @ts-expect-error generator-only begin methods are not fabricated by the async wrapper
+void client.beginRun
+
+// @ts-expect-error generator-only begin methods are not fabricated by the async wrapper
+void client.beginRpc
 
 // @ts-expect-error public client operations accept one named request object
 client.run(Checkout, "checkout-1", { sku: "sku-1" })
+
+// @ts-expect-error module accessors preserve the same named request API
+ResonateClient.run(Checkout, "checkout-1", { sku: "sku-1" })
 
 // @ts-expect-error client Layer construction accepts one named options object
 ResonateClient.layer(CheckoutFunctions, { drainTimeout: "30 seconds" })
@@ -159,7 +316,7 @@ declare const context: WorkflowContext
 
 const runResult = context.run(Reserve, { sku: "sku-1" }, {
   timeout: 1_000,
-  retry: { _tag: "Exponential", delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 }
+  retryPolicy: new Exponential({ delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 })
 })
 const rpcResult = context.rpc(Reserve, { sku: "sku-1" })
 const currentTime = context.date.now()

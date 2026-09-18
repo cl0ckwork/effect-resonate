@@ -54,7 +54,13 @@ describe("StepAdapter", () => {
       name: "inventory.reserve",
       version: 1,
       input: Schema.Struct({ sku: Schema.String }),
-      success: Schema.Struct({ id: Schema.String, attempt: Schema.Number, frozen: Schema.Boolean }),
+      success: Schema.Struct({
+        id: Schema.String,
+        attempt: Schema.Number,
+        func: Schema.String,
+        dependency: Schema.String,
+        frozen: Schema.Boolean
+      }),
       failure: Schema.Never
     })
     const runtime = makeRuntime(definition, () => Effect.gen(function*() {
@@ -62,16 +68,23 @@ describe("StepAdapter", () => {
         return {
           id: context.id,
           attempt: context.attempt,
+          func: context.func,
+          dependency: context.getDependency<string>("region") ?? "missing",
           frozen: Object.isFrozen(context)
         }
       }))
     await runtime.context()
 
-    const result = await StepAdapter.make(definition, runtime.runPromise)(info, { sku: "sku-1" })
+    const result = await StepAdapter.make(definition, runtime.runPromise)({
+      ...info,
+      getDependency: (key) => key === "region" ? "us-east-1" : undefined
+    }, { sku: "sku-1" })
 
     assert.deepStrictEqual(result, DurableOutcome.success(DurableOutcome.identityOf(definition), {
       id: info.id,
       attempt: 2,
+      func: info.func,
+      dependency: "us-east-1",
       frozen: true
     }))
     await runtime.dispose()

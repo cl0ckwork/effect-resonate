@@ -1,11 +1,13 @@
 import { assert, describe, it } from "@effect/vitest"
 import {
   DurablePromise as SdkDurablePromise,
+  Exponential,
   type Context as ResonateContext,
   type Info
 } from "@resonatehq/sdk/async"
 import { Result, Schema } from "effect"
 import * as Step from "../../Step.js"
+import * as Workflow from "../../Workflow.js"
 import * as DurableOutcome from "../DurableOutcome.js"
 import * as WorkflowContextImpl from "../WorkflowContextImpl.js"
 
@@ -59,7 +61,8 @@ describe("WorkflowContextImpl", () => {
       timeout: 500,
       target: "poll://any@inventory",
       tags: { tenant: "acme" },
-      retry: { _tag: "Exponential", delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 }
+      retryPolicy: new Exponential({ delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 }),
+      nonRetryableErrors: [TypeError]
     })
 
     assert.strictEqual(pending.id, "child-1")
@@ -72,6 +75,7 @@ describe("WorkflowContextImpl", () => {
       readonly target: string
       readonly tags: Readonly<Record<string, string>>
       readonly retryPolicy: { readonly encode: () => unknown }
+      readonly nonRetryableErrors: ReadonlyArray<unknown>
     }
     assert.strictEqual(options.version, definition.version)
     assert.strictEqual(options.timeout, 500)
@@ -81,6 +85,38 @@ describe("WorkflowContextImpl", () => {
       type: "exponential",
       data: { delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 }
     })
+    assert.deepStrictEqual(options.nonRetryableErrors, [TypeError])
+  })
+
+  it("preserves raw eager run and rpc calls without wrapping their durable promises", async () => {
+    const calls: Array<readonly [string, ReadonlyArray<unknown>]> = []
+    const runPromise = durable("raw-run", Promise.resolve("run-result"))
+    const rpcPromise = durable("raw-rpc", Promise.resolve("rpc-result"))
+    const sdkContext = {
+      ...info,
+      run: (func: unknown, ...arguments_: ReadonlyArray<unknown>) => {
+        calls.push([String(func), arguments_])
+        return runPromise
+      },
+      rpc: (func: unknown, ...arguments_: ReadonlyArray<unknown>) => {
+        calls.push([String(func), arguments_])
+        return rpcPromise
+      }
+    } as unknown as ResonateContext
+    const context = WorkflowContextImpl.make(sdkContext)
+    const rawFunction = async (_context: ResonateContext, value: string) => `${value}!`
+
+    const run = context.run(rawFunction, "hello")
+    const rpc = context.rpc<string>("remote.echo", "world")
+
+    assert.strictEqual(run, runPromise)
+    assert.strictEqual(rpc, rpcPromise)
+    assert.strictEqual(await run, "run-result")
+    assert.strictEqual(await rpc, "rpc-result")
+    assert.strictEqual(calls.length, 2)
+    assert.strictEqual(calls[0]?.[0], String(rawFunction))
+    assert.deepStrictEqual(calls[0]?.[1], ["hello"])
+    assert.deepStrictEqual(calls[1], ["remote.echo", ["world"]])
   })
 
   it("delegates rpc independently from run", async () => {
@@ -182,7 +218,7 @@ describe("WorkflowContextImpl", () => {
     })
   })
 
-  it("validates outbound durable values before invoking the SDK", async () => {
+  it("validates typed definition input before invoking the SDK", async () => {
     const definition = Step.make({
       name: "inventory.reserve",
       version: 1,
@@ -197,10 +233,6 @@ describe("WorkflowContextImpl", () => {
       run: () => {
         calls += 1
         return durable("unreachable", Promise.resolve(null))
-      },
-      promise: () => {
-        calls += 1
-        return durable("unreachable", Promise.resolve(null))
       }
     } as unknown as ResonateContext
     const context = WorkflowContextImpl.make(sdkContext)
@@ -211,20 +243,16 @@ describe("WorkflowContextImpl", () => {
       _tag: "@effect-resonate/core/DurableProtocolError",
       issue: "PayloadEncodeFailed"
     })
-    assert.deepInclude(await rejectionOf(
-      context.promise(Schema.Null, { data: new Date(0) as never })
-    ), {
-      _tag: "@effect-resonate/core/InvalidDurableValue",
-      location: "PromiseData"
-    })
     assert.strictEqual(calls, 0)
   })
 
   it("decodes external promises and rejects schema mismatches", async () => {
+    const calls: Array<unknown> = []
     let invocation = 0
     const sdkContext = {
       ...info,
-      promise: () => {
+      promise: (options: unknown) => {
+        calls.push(options)
         invocation += 1
         return invocation === 1
           ? durable("approval-1", Promise.resolve({ approved: true }))
@@ -234,11 +262,125 @@ describe("WorkflowContextImpl", () => {
     const context = WorkflowContextImpl.make(sdkContext)
     const schema = Schema.Struct({ approved: Schema.Boolean })
 
-    assert.deepStrictEqual(await context.promise(schema), { approved: true })
-    assert.deepInclude(await rejectionOf(context.promise(schema)), {
+    assert.deepStrictEqual(await context.promise(schema, {
+      timeout: 500,
+      data: { orderId: "order-1" },
+      tags: { tenant: "acme" }
+    }), { approved: true })
+    assert.deepInclude(await rejectionOf(context.promise(schema, { tags: { tenant: "acme" } })), {
       _tag: "@effect-resonate/core/DurableProtocolError",
       issue: "PayloadDecodeFailed"
     })
+    assert.deepStrictEqual(calls, [
+      { timeout: 500, data: { orderId: "order-1" }, tags: { tenant: "acme" } },
+      { tags: { tenant: "acme" } }
+    ])
+  })
+
+  it("preserves raw promise options and returned durable promise", async () => {
+    const pending = durable("approval-raw", Promise.resolve({ approved: true }))
+    const calls: Array<unknown> = []
+    const sdkContext = {
+      ...info,
+      promise: (options: unknown) => {
+        calls.push(options)
+        return pending
+      }
+    } as unknown as ResonateContext
+    const context = WorkflowContextImpl.make(sdkContext)
+
+    const result = context.promise<{ readonly approved: boolean }>({
+      timeout: 500,
+      data: { orderId: "order-1" },
+      tags: { tenant: "acme" }
+    })
+
+    assert.strictEqual(result, pending)
+    assert.deepStrictEqual(calls, [{
+      timeout: 500,
+      data: { orderId: "order-1" },
+      tags: { tenant: "acme" }
+    }])
+  })
+
+  it("delegates detached workflows with encoded input and exact version", async () => {
+    const definition = Workflow.make({
+      name: "checkout.detached",
+      version: 4,
+      input: Schema.Struct({ orderId: Schema.String }),
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const calls: Array<ReadonlyArray<unknown>> = []
+    const sdkContext = {
+      ...info,
+      options: (options: unknown) => options,
+      detached: (...arguments_: ReadonlyArray<unknown>) => {
+        calls.push(arguments_)
+        return durable("spawn", Promise.resolve({ id: "detached-1" }))
+      }
+    } as unknown as ResonateContext
+
+    const pending = WorkflowContextImpl.make(sdkContext).detached(
+      definition,
+      { orderId: "order-1" },
+      { target: "poll://any@checkout" }
+    )
+
+    assert.deepStrictEqual(await pending, { id: "detached-1" })
+    assert.deepStrictEqual(calls, [[
+      definition.name,
+      { orderId: "order-1" },
+      { target: "poll://any@checkout", version: definition.version }
+    ]])
+  })
+
+  it("forwards dependencies, options, panic, and assert exactly once", () => {
+    const dependency = { name: "inventory" }
+    const calls: Array<readonly [string, unknown]> = []
+    const sdkContext = {
+      ...info,
+      getDependency: (key: string) => key === "inventory" ? dependency : undefined,
+      options: (options: unknown) => {
+        calls.push(["options", options])
+        return { built: options }
+      },
+      panic: (condition: boolean, message?: string) => {
+        calls.push(["panic", { condition, message }])
+      },
+      assert: (condition: boolean, message?: string) => {
+        calls.push(["assert", { condition, message }])
+      }
+    } as unknown as ResonateContext
+    const context = WorkflowContextImpl.make(sdkContext)
+
+    assert.strictEqual(context.getDependency("inventory"), dependency)
+    assert.deepStrictEqual(context.options({ timeout: 100 }), { built: { timeout: 100 } })
+    context.panic(true, "stop")
+    context.assert(false, "required")
+    assert.deepStrictEqual(calls, [
+      ["options", { timeout: 100 }],
+      ["panic", { condition: true, message: "stop" }],
+      ["assert", { condition: false, message: "required" }]
+    ])
+  })
+
+  it("preserves synchronous context guard and abort failures", () => {
+    const closed = new Error("closed")
+    const panic = new Error("panic")
+    const sdkContext = {
+      ...info,
+      run: () => {
+        throw closed
+      },
+      panic: () => {
+        throw panic
+      }
+    } as unknown as ResonateContext
+    const context = WorkflowContextImpl.make(sdkContext)
+
+    assert.throws(() => context.run("late"), closed)
+    assert.throws(() => context.panic(true), panic)
   })
 
   it("delegates durable sleep, time, random, and exposes immutable metadata", async () => {
@@ -256,11 +398,13 @@ describe("WorkflowContextImpl", () => {
 
     await context.sleep(10)
     await context.sleep({ for: 20 })
-    await context.sleep({ until: 1_000 })
-    assert.deepStrictEqual(calls, [10, { for: 20 }, { until: new Date(1_000) }])
+    const until = new Date(1_000)
+    await context.sleep({ until })
+    assert.deepStrictEqual(calls, [10, { for: 20 }, { until }])
     assert.strictEqual(await context.date.now(), 123)
     assert.strictEqual(await context.math.random(), 0.5)
     assert.strictEqual(context.id, info.id)
+    assert.strictEqual(context.func, info.func)
     assert.isTrue(Object.isFrozen(context))
   })
 })

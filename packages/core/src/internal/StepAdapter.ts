@@ -16,7 +16,8 @@ const metadata = (context: Info): StepContextService => Object.freeze({
   timeoutAt: context.timeoutAt,
   attempt: context.attempt,
   version: context.version,
-  name: context.func
+  func: context.func,
+  getDependency: <Value>(key: string) => context.getDependency<Value>(key)
 })
 
 const rejectedReason = <E>(cause: Cause.Cause<E>): "Defect" | "Interrupted" | "CompositeCause" | "Unknown" => {

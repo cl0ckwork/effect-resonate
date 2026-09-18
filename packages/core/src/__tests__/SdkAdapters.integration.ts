@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import { Resonate } from "@resonatehq/sdk/async"
+import { Constant, Resonate } from "@resonatehq/sdk/async"
 import { Effect, Layer, ManagedRuntime, Result, Schema } from "effect"
 import * as Step from "../Step.js"
 import { StepContext } from "../StepContext.js"
@@ -121,7 +121,7 @@ describe("SDK adapter contracts", () => {
       failure: Schema.Struct({ reason: Schema.String })
     })
     const CheckoutLive = Checkout.toLayer(async (context) => context.run(Decline, null, {
-        retry: { _tag: "Constant", delay: 0, maxRetries: 3 }
+      retryPolicy: new Constant({ delay: 0, maxRetries: 3 })
       }))
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, DeclineLive))
     await runtime.context()
@@ -179,7 +179,7 @@ describe("SDK adapter contracts", () => {
       failure: Schema.String
     })
     const RecoverLive = Recover.toLayer(async (context) => context.run(Flaky, null, {
-        retry: { _tag: "Constant", delay: 0, maxRetries: 1 }
+      retryPolicy: new Constant({ delay: 0, maxRetries: 1 })
       }))
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, FlakyLive))
     await runtime.context()

@@ -1,5 +1,5 @@
 import type { Network } from "@resonatehq/sdk"
-import type { Resonate, ResonateHandle } from "@resonatehq/sdk/async"
+import type { Resonate, ResonateHandle, ResonateSchedule } from "@resonatehq/sdk/async"
 import { Schema } from "effect"
 
 type MethodNames<Service> = {
@@ -7,10 +7,25 @@ type MethodNames<Service> = {
 }[keyof Service] & string
 
 type ResonateOperation =
-  | Extract<MethodNames<Resonate>, "register" | "run" | "rpc" | "get" | "stop">
-  | `handle.${Extract<MethodNames<ResonateHandle<unknown>>, "result">}`
+  | Extract<
+    MethodNames<Resonate>,
+    "register" | "setDependency" | "run" | "rpc" | "schedule" | "options" | "get" | "stop"
+  >
+  | `handle.${Extract<MethodNames<ResonateHandle<unknown>>, "result" | "done">}`
+  | `schedule.${Extract<MethodNames<ResonateSchedule>, "delete">}`
   | `network.${Extract<MethodNames<Network>, "init">}`
-  | `promises.${Extract<MethodNames<Resonate["promises"]>, "resolve" | "reject" | "cancel">}`
+  | `promises.${Extract<
+    MethodNames<Resonate["promises"]>,
+    | "get"
+    | "create"
+    | "createWithTask"
+    | "resolve"
+    | "reject"
+    | "cancel"
+    | "registerCallback"
+    | "registerListener"
+  >}`
+  | `schedules.${Extract<MethodNames<Resonate["schedules"]>, "get" | "create" | "delete">}`
 
 const DefinitionKind = Schema.Literals(["Step", "Workflow"])
 
@@ -40,13 +55,26 @@ const ProtocolIssue = Schema.Literals([
 const ResonateOperations = [
   "network.init",
   "register",
+  "setDependency",
   "run",
   "rpc",
+  "schedule",
+  "options",
   "get",
   "handle.result",
+  "handle.done",
+  "schedule.delete",
+  "promises.get",
+  "promises.create",
+  "promises.createWithTask",
   "promises.resolve",
   "promises.reject",
   "promises.cancel",
+  "promises.registerCallback",
+  "promises.registerListener",
+  "schedules.get",
+  "schedules.create",
+  "schedules.delete",
   "stop"
 ] as const satisfies ReadonlyArray<ResonateOperation>
 
