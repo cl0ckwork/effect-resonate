@@ -129,7 +129,7 @@ Postgres integration suite; none depends only on logs or manual inspection.
 - A per-step Effect service exposing stable Resonate invocation metadata,
   especially the durable step ID used for idempotency.
 - One scoped Effect service that owns the Resonate instance, closed registration
-  set, captured Effect callback runtime, invocation, input-free attachment by workflow and
+  set, captured Effect callback runtime, invocation, input-free lookup by workflow and
   execution ID, external-promise resolution/rejection/cancellation, waiting, and
   orderly shutdown. Module-level operation accessors retrieve that service from
   the Effect context so ordinary callers do not need to address the service tag
@@ -218,23 +218,24 @@ and stacks are not persisted in this record.
 - A workflow body returns a typed `Result<A, E>`. Its adapter validates/decodes
   input before user code, then encodes either branch using the workflow's
   boundary schemas.
-- The Effect-facing client validates before activation and decodes after
-  completion. `run` creates or attaches using validated input; `attach` performs
-  an input-free lookup and never creates durable state. Both accept the workflow
-  definition, verify the final envelope's exact definition identity before
-  decoding its payload, and return `Effect<A, E | CoreExecutionError>`. A
-  workflow failure becomes `E`; owned validation/protocol failures remain
-  specific wrapper errors. Failures observed at the SDK boundary remain one
-  thin `ResonateSdkError` carrying the original cause and upstream metadata rather
-  than being translated into a parallel error taxonomy.
+- The Effect-facing client validates before activation and decodes only when a
+  returned handle is awaited. Typed `run` creates or reuses the globally addressed
+  execution using validated input; typed `get` performs an input-free lookup and
+  never creates durable state. Both return an Effect-native handle. Its
+  `result()` verifies the final envelope's exact definition identity before
+  decoding its payload and yields `Effect<A, E | CoreExecutionError>`. A workflow
+  failure becomes `E`; owned validation/protocol failures remain specific wrapper
+  errors. Failures observed at the SDK boundary remain one thin
+  `ResonateSdkError` carrying the original cause and upstream metadata rather than
+  being translated into a parallel error taxonomy.
 - A transport failure or caller interruption after activation has been
   dispatched may occur after Postgres committed the root creation. A returned
   connector error preserves the execution ID and reports that activation may
   have committed. An interrupted fiber returns no error value, so the caller
   relies on the ID it supplied and makes the same assumption. Recovery retries
   `run` with the same
-  workflow definition, version, input, and execution ID, or calls `attach`; it
-  never substitutes a fresh ID.
+  workflow definition, version, input, and execution ID, or calls typed `get`
+  with that definition and ID; it never substitutes a fresh ID.
 - Resonate retries remain opt-in. Since checked failures are resolved values,
   they are not retried by Resonate. A step may use an explicit Effect retry
   schedule for typed transient failures within one adapter execution. A caller
@@ -253,8 +254,8 @@ This preserves the distinction proposed but left open in
 | ID | Story | Path | Observable result | Invariants | Criteria |
 | --- | --- | --- | --- | --- | --- |
 | W1 | Checkout `order-42` charges through an Effect step, sleeps, and completes. | validate → create → execute → checkpoint → suspend → wake → replay → settle → decode | The caller receives the typed success; the business-side attempt/effect assertions prove that the step ran and the sleep resumed in another runtime incarnation. | S1, S2, S5, S8, L1, L2, C2, C3, C4 | SC1, SC2, SC8 |
-| W2 | Two callers submit `order-42` concurrently with the same input while neither activation has settled. | validate → create → wait → decode / validate → attach → wait → decode | Both callers receive the same result; one root execution exists. | S4, C1 | SC4 |
-| W3 | A stale caller reuses `order-42` with different input. | validate → attach → wait → decode | **The original result wins.** No input replacement or second execution occurs. | S4, C1 | SC4 |
+| W2 | Two callers submit `order-42` concurrently with the same input while neither activation has settled. | validate → run → handle → result → decode / validate → run → handle → result → decode | Both callers receive the same result; one root execution exists. | S4, C1 | SC4 |
+| W3 | A stale caller reuses `order-42` with different input. | validate → run → existing handle → result → decode | **The original result wins.** No input replacement or second execution occurs. | S4, C1 | SC4 |
 | W4 | The first worker stops after the charge checkpoint and before the durable sleep wakes. | execute → checkpoint → suspend → reconnect → wake → replay → settle | A second worker resumes; charge is replayed from its checkpoint and is not executed again. | S1, S6, L2, L3, C2 | SC3, SC7 |
 | W5 | A deterministic failpoint kills a worker after the charge side effect commits but before the step outcome is checkpointed. | execute → side effect → crash → lease expiry → replay → idempotent effect → checkpoint → settle | Recovery enters the adapter at least twice with the same durable step ID; the workflow succeeds and the uniqueness constraint leaves exactly one charge row. | S4, L3, C1, C2 | SC5 |
 | W6 | `ChargeCard` returns `PaymentDeclined`; a separate step dies with a `TypeError`. | execute → checked failure → checkpoint → decode / execute → defect → reject | Decline appears in the typed domain channel. The defect appears as `CoreExecutionError` and no false success/failure envelope is persisted. | S2, S3, C4 | SC6 |
@@ -262,8 +263,8 @@ This preserves the distinction proposed but left open in
 | W8 | The application Layer fails, Postgres is unavailable, or the `resonate` schema is missing during startup; in a separate run Postgres drops after activation. | initialize → reject layer / execute → connector failure → recover → replay | Startup cannot report a usable service and rolls back earlier resources. A created invocation is never reported successful because of an outage and can recover after Postgres and a worker return. | S5, S7, L1, L3, C2 | SC6, SC7 |
 | W9 | A client waiting on a durable sleep is interrupted, its deadline becomes due while all workers are stopped, and one worker restarts later. | wait → cancel wait → suspend → wake → reconnect → replay → settle → get → wait → decode | Caller interruption only stops that wait. Cron settles the deadline without a worker; a fresh runtime uses `get` without resupplying input and receives the result after a compatible worker returns. | S6, L1, L2, L3, C5 | SC3, SC7 |
 | W10 | A workflow awaits a normal timer/I/O promise and then calls `ctx.run`. | execute → non-durable await → pass closes → durable op rejected | **MUST NOT silently continue.** The upstream closed-context guard rejects the late durable operation; tests demonstrate the unsupported pattern. | S1, S3 | SC9 |
-| W11 | `order-42` already belongs to `Checkout` v1 when a caller invokes another workflow, or `Checkout` v2, with that global ID. | validate → attach → wait → identity mismatch → reject | **MUST NOT decode under the second definition.** The stored envelope identity produces a tagged definition conflict and no second root execution. | S3, S4, S8, C1, C4 | SC4, SC8 |
-| W12 | Postgres commits creation of `order-42`, but the activation response is lost. | validate → create → response lost → retry same ID → attach → wait → decode | The first error says activation may have committed and retains `order-42`; a same-definition, same-input retry attaches and observes the one execution. | S4, L1, C1, C5 | SC4, SC6 |
+| W11 | `order-42` already belongs to `Checkout` v1 when a caller invokes another workflow, or `Checkout` v2, with that global ID. | get → handle → result → identity mismatch → reject | **MUST NOT decode under the second definition.** The stored envelope identity produces a tagged definition conflict and no second root execution. | S3, S4, S8, C1, C4 | SC4, SC8 |
+| W12 | Postgres commits creation of `order-42`, but the activation response is lost. | validate → create → response lost → retry same ID or get → handle → result → decode | The first error says activation may have committed and retains `order-42`; a same-definition retry or typed lookup observes the one execution. | S4, L1, C1, C5 | SC4, SC6 |
 | W13 | Release begins while a tracked step adapter is blocked, then it completes within the drain bound. | execute → begin release → close intake → drain → settle → stop Resonate/network → dispose runtime | No new adapter starts, the in-flight step settles normally, finalizers run once, release completes, and a repeated release is harmless. | S6, C3 | SC7 |
 | W14 | Release begins while a supervised step fiber remains blocked past the drain bound. | execute → begin release → close intake → drain → drain expires → abandon/fence/interrupt → stop Resonate/network → lease expiry/replay on another worker; old adapter settles → dispose old runtime | No success or checked failure is fabricated; stopping the connector releases its lease independently of an uninterruptible old adapter, whose fenced Exit cannot checkpoint. Runtime disposal waits for its promise/finalizers. | S6, L3, C2 | SC3, SC7 |
 | W15 | `ChargeCard` remains in flight past its durable deadline and commits afterward. | execute → timeout → settle timeout → late side effect → late checkpoint rejected | The caller observes `ResonateSdkError`, never domain `E`; timeout does not imply cancellation or absence of an external effect, and the timed-out durable state is not overwritten. | S3, S4, S9, C2 | SC5, SC6 |
@@ -274,7 +275,7 @@ This preserves the distinction proposed but left open in
 flowchart TD
   Caller[Effect caller] -->|validate + encode| Client[ResonateClient]
   Client -->|provider-neutral contract| Network[ResonateNetwork]
-  Network -->|run: create or attach| PG[(Postgres + resonate schema)]
+  Network -->|run: create or reuse| PG[(Postgres + resonate schema)]
   Network -->|get: lookup only| PG
   Client -->|interrupt only local wait| Detached[Durable execution remains]
   PG -->|execute delivery| Gate[Ready registration gate]
@@ -300,7 +301,7 @@ walkthrough.
 flowchart LR
   A0((start)) -->|validate| A1[validated]
   A1 -->|create| A2[durable root]
-  A1 -->|attach| A2
+  A1 -->|get existing| A2
   A2 -->|wait| A3[waiting caller]
   A3 -->|decode| A4[typed result]
   A2 -->|execute| A5[adapter pass]
@@ -403,7 +404,7 @@ Lifecycle order is part of the protocol:
 | S1 | Workflow code issues I/O, timers, randomness, calls, and signals only through the wrapper's durable context. Type surface, documentation, and the upstream closed-context guard enforce this; arbitrary Effect programs execute only in registered step adapters. | W1, W4, W10 | A normal `setTimeout` resumes after the pass and calls `ctx.run`; the context is closed and rejects it. |
 | S2 | A checked Effect failure is never serialized as a generic thrown `Error`; it is a resolved, versioned durable failure value. The adapter's `Exit` mapping enforces this. | W1, W6 | `PaymentDeclined` sent through a rejecting Promise bridge would become an SDK rejection; adapters capture `Exit` and encode the declared failure schema instead. |
 | S3 | The wrapper never automatically presents a defect, interruption, malformed protocol value, identity conflict, or encode failure as domain `E`. Cause classification and client/context envelope decoding enforce this; explicit workflow recovery may deliberately translate a caught execution failure. | W6, W10, W11, W15 | A `TypeError` handled by a blanket adapter mapper would look like `PaymentDeclined`; only a simple checked-failure cause maps automatically to `Failure`. |
-| S4 | Globally addressed root IDs and generated step IDs are idempotency keys, not attempt IDs. Reusing one root ID cannot replace its original definition, version, parameters, or settlement; external side effects that need once-only business behavior use the stable step ID or an equally stable domain key. Resonate ID deduplication, definition-identity validation, and target-system uniqueness enforce this. | W2, W3, W5, W11, W12, W15 | A second request changes the amount or definition for `order-42`; it can attach but cannot replace or decode under the wrong contract. A crash-window replay inserts the same step key and the unique constraint deduplicates it. |
+| S4 | Globally addressed root IDs and generated step IDs are idempotency keys, not attempt IDs. Reusing one root ID cannot replace its original definition, version, parameters, or settlement; external side effects that need once-only business behavior use the stable step ID or an equally stable domain key. Resonate ID deduplication, definition-identity validation, and target-system uniqueness enforce this. | W2, W3, W5, W11, W12, W15 | A second request changes the amount or definition for `order-42`; it can observe the retained execution but cannot replace or decode it under the wrong contract. A crash-window replay inserts the same step key and the unique constraint deduplicates it. |
 | S5 | A service is never exposed before handler/application Layers, the exact definition registry, and selected network are ready. Core's scoped acquisition and closed delivery gate enforce the generic rule; each provider defines its readiness check. | W1, W8 | A checked dependency-Layer failure or provider readiness failure must fail acquisition and roll back acquired resources before delivery. |
 | S6 | Releasing or interrupting an Effect scope does not convert active durable work into a successful or checked-failure settlement. Wait cancellation detaches; ordered shutdown drains or leaves work for lease recovery. | W4, W9, W13, W14 | Releasing application services before stopping intake interrupts a step and could reject it permanently; Layer dependency ordering and the client finalizer forbid that sequence. |
 | S7 | Connection strings, raw persisted payloads, causes/stacks, and schema input are not included in wrapper-owned contract errors, durable values, safe error projections, or default logs. A thin in-memory `ResonateSdkError` deliberately retains the original SDK `cause` for debugging, but logging adapters expose only its allowlisted metadata by default. | W7, W8 | A schema issue echoes a payment token or the `pg` error echoes a URL; sentinel-based acceptance proves sanitization prevents either crossing a durable or default-log boundary while explicit cause inspection remains possible. |
@@ -422,11 +423,11 @@ Lifecycle order is part of the protocol:
 
 | ID | Invariant and enforcement | Exercised by | Counterexample attempted and guard |
 | --- | --- | --- | --- |
-| C1 | One globally scoped root ID denotes one immutable logical invocation while its durable record is retained; all callers attach to its original definition identity, parameters, and settlement. Resonate create-conflict semantics enforce first writer wins, and the wrapper rejects rather than decodes a mismatched definition identity. | W2, W3, W5, W11, W12 | A caller assumes the same ID with new input, workflow, or version means a new run; the API documents the original-result or identity-conflict behavior. |
+| C1 | One globally scoped root ID denotes one immutable logical invocation while its durable record is retained; all callers observe its original definition identity, parameters, and settlement. Resonate create-conflict semantics enforce first writer wins, and the wrapper rejects rather than decodes a mismatched definition identity. | W2, W3, W5, W11, W12 | A caller assumes the same ID with new input, workflow, or version means a new run; the API documents the original-result or identity-conflict behavior. |
 | C2 | A successfully checkpointed child outcome is replayed from Postgres and not re-executed; an uncheckpointed child may execute again, while a late checkpoint cannot replace an already timed-out settlement. Resonate owns these decisions. | W1, W4, W5, W8, W14, W15 | The process dies on opposite sides of checkpointing, drain expiry, or timeout; W4, W5, W14, and W15 intentionally produce different execution/settlement results. |
 | C3 | All step adapters in one wrapper scope use the same acquired handler/application Layer graph; per-invocation `StepContext` is added without rebuilding application services. | W1, W13 | A database Layer is rebuilt per attempt and produces inconsistent pools/configuration; the client Layer captures one shared context whose dependencies outlive drain and release afterward. |
 | C4 | Every checked outcome crossing a durable boundary has one recognized protocol version, exact definition identity, recognized outcome tag, and exactly the corresponding payload field. Wrapper-owned decoders enforce this before reconstructing `Result`. | W1, W6, W7, W11 | Old/corrupt data says `Success` with only `error`, names another definition, or has an unknown version/tag; decoding yields a tagged wrapper error, not a cast value. |
-| C5 | A root invocation remains addressable by its global execution ID while its durable record is retained, independently of any caller fiber or worker incarnation. | W9, W12 | The initiating caller is interrupted and loses its handle; a fresh runtime uses `attach` and observes the retained execution without creating another root. |
+| C5 | A root invocation remains addressable by its global execution ID while its durable record is retained, independently of any caller fiber or worker incarnation. | W9, W12 | The initiating caller is interrupted and loses its handle; a fresh runtime uses typed `get` and observes the retained execution without creating another root. |
 
 ## Failure taxonomy
 
@@ -437,8 +438,8 @@ Lifecycle order is part of the protocol:
 | Defect / contract defect | `TypeError`, die, mixed cause, bad internal envelope, wrong definition identity, non-JSON result | Rejected durable operation or client-side protocol/identity rejection | No retry by default; explicit Resonate policy may retry an uncaught execution attempt | Tagged `ExecutionRejected`, `DefinitionConflict`, or `DurableProtocolError`; never automatically `E` |
 | Retryable infrastructure failure | Lost DB connection, Resonate server rejection, rate limit promoted for another execution attempt | Rejected attempt, unrecorded task progress, or unknown activation outcome | Effect retry within a step, or explicit Resonate retry within an SDK execution pass; process loss resets the SDK retry loop and requires idempotency | Thin `ResonateSdkError` retaining the cause, upstream `code`/`type`/`href`/retriability/server status when present, operation context, and whether the request may have committed |
 | Timeout | Workflow/child durable deadline reached | `rejected_timedout` Resonate promise; late settlement cannot overwrite it | Governed by Resonate timeout and retry options; does not interrupt an already-running Effect | Thin `ResonateSdkError` retaining the SDK cause; caller must not infer that no external side effect occurred |
-| Caller cancellation | Waiting Effect fiber interrupted, including after activation dispatch | No cancellation of an already-created execution; activation commit may be unknown if interruption races creation | Caller uses `attach` or repeats `run` with the same identity and input | Local interruption; durable execution remains independent after creation |
-| Worker shutdown/crash | SIGTERM during drain, SIGKILL, process loss | No fabricated settlement; task/child remains in last committed state | Resonate lease recovery on another worker | Reattach by ID; eventual result under liveness preconditions |
+| Caller cancellation | Waiting Effect fiber interrupted, including after activation dispatch | No cancellation of an already-created execution; activation commit may be unknown if interruption races creation | Caller uses typed `get` or repeats `run` with the same identity and input | Local interruption; durable execution remains independent after creation |
+| Worker shutdown/crash | SIGTERM during drain, SIGKILL, process loss | No fabricated settlement; task/child remains in last committed state | Resonate lease recovery on another worker | Look up by ID with `get`; eventual result under liveness preconditions |
 
 Effect retry and Resonate retry must not both be enabled accidentally from one
 opaque default. Defaults are no retry at the wrapper's Resonate boundary, which
@@ -456,8 +457,8 @@ per-process-pass behavior, not durable lifetime budgets.
 | Postgres/Resonate → step adapter | Persisted step/RPC argument tuple | Revalidate tuple arity and decode with the exact versioned step input codec before constructing `StepContext` or running user code. |
 | Resonate → workflow context | Step outcome | Validate protocol version, exact step identity, tag, and exclusive payload field, then decode success/failure with the corresponding step codec before reconstructing `Result`. |
 | External resolver → client → durable promise | Promise ID and signal/promise value | Resolve through the client with a caller-supplied service-free schema, encode before SDK settlement, and require the workflow to decode with its supplied schema before exposing the value to orchestration. Reject/cancel diagnostics must satisfy the durable JSON contract. Preserve SDK causes and metadata rather than inventing wrapper reason enums. |
-| Workflow adapter → Postgres | Workflow success/domain error | Encode with the corresponding service-free workflow boundary schema, attach exact definition identity, then wrap in the owned durable envelope. Encoding failure is a contract defect. |
-| Postgres/Resonate → client | Final root settlement/envelope and payload | `run` or `attach` validates the exact workflow identity before payload decoding and decodes success/error with the service-free schema. Owned envelope failures use specific wrapper errors; SDK failures use the thin `ResonateSdkError` without semantic reclassification. |
+| Workflow adapter → Postgres | Workflow success/domain error | Encode with the corresponding service-free workflow boundary schema, include exact definition identity, then wrap in the owned durable envelope. Encoding failure is a contract defect. |
+| Postgres/Resonate → client | Final root settlement/envelope and payload | Typed handle `result()` validates the exact workflow identity before payload decoding and decodes success/error with the service-free schema. Owned envelope failures use specific wrapper errors; SDK failures use the thin `ResonateSdkError` without semantic reclassification. |
 | Configuration → Postgres provider package | Connection string, group, PID, polling interval, lease/timeout settings | Parse inside `@effect-resonate/network-postgres`, reject invalid values before acquisition, and redact secrets from errors/logs. Core never sees provider configuration. |
 | SDK network → wrapper | Messages, initialization errors, shutdown | Use the official SDK protocol implementation; gate delivery until registration, surface readiness failure, and never cast arbitrary network data into domain types. |
 

@@ -125,7 +125,8 @@ Effect caller
   default. Checked failure envelopes are resolved and therefore not retried.
 - Interrupting a caller cancels only the Effect wait. If activation dispatch may
   already have committed, the caller recovers with the supplied ID via identical
-  `run` or input-free `attach`.
+  `run`, or looks up the retained execution with `get` and then awaits the
+  returned handle's `result()`.
 - A durable timeout settles independently of running Effect code. A late adapter
   may still commit an external effect, but its late checkpoint cannot replace
   the timed-out state.
@@ -168,10 +169,10 @@ pairs in its typed acquisition error channel before exposing the service.
 and return SDK-compatible awaitables of `Result<A, E>`. The context also exposes
 durable `sleep`, schema-decoded external `promise`, replay-stable time/random,
 and readonly wrapper metadata. `StepContext` exposes the readonly invocation
-metadata, including the stable step ID. `ResonateClient` exposes typed
-`resolvePromise`, plus JSON-safe `rejectPromise` and `cancelPromise`, so external
-promises are usable without an SDK escape hatch. Detached workflows, schedules,
-and arbitrary SDK access remain absent per scope.
+metadata, including the stable step ID. `ResonateClient` preserves the upstream
+`promises.*` and `schedules.*` namespaces, with additive schema-aware settlement
+overloads. Raw SDK records and operations remain reachable without bypassing the
+Effect service.
 
 Alternatives rejected: string-based definitions lose type/identity evidence;
 implicit version 1 allows accidental version drift; Effect-authored workflows
@@ -205,9 +206,11 @@ gated official Network, registers all exact versions, awaits network readiness,
 then opens delivery and exposes the client service. The same state machine makes release
 idempotent and fences late completions. A semaphore makes admission plus fiber
 registration atomic with closing the supervisor, so draining cannot miss an
-accepted step. Module-level `run`, `attach`, `resolvePromise`, `rejectPromise`,
-and `cancelPromise` accessors retrieve the scoped service from the Effect
-context while preserving its environment requirement.
+accepted step. Module-level accessors preserve the upstream async client names,
+including `run`, `rpc`, `get`, `promises.*`, and `schedules.*`; they retrieve the
+scoped service from the Effect context while preserving its environment
+requirement. `run`, `rpc`, and `get` return Effect-native handles, and waiting is
+an explicit `handle.result()` or `handle.done()` Effect.
 
 The drain duration is a grace-period bound, not a promise that arbitrary user
 code or its finalizers can be forcibly terminated. After expiry, core fences
@@ -391,8 +394,8 @@ factory and sanitized error mapper; require the group's handler services and
 their transitive application Layers through normal Layer composition; capture
 the acquired context once for SDK callbacks;
 capture one network init promise; buffer delivery until all exact registrations
-succeed; expose Effect `run`, input-free `attach`, and external-promise
-resolve/reject/cancel operations; preserve execution ID and
+succeed; expose the upstream-named async client, promise, and schedule operations
+as Effects; preserve execution ID and
 `activationMayHaveCommitted` on dispatch failure; wait interruptibly without
 canceling durable state; and wrap SDK failures once without reclassifying them,
 preserving Resonate code/type/href/retriability/server status. Resolve values are encoded through a
@@ -406,7 +409,7 @@ only for partial acquisition before the Resonate instance assumes ownership.
 
 Tests: duplicate definitions and multiple versions; readiness failures at each
 acquisition seam; first-writer-wins same/different input; workflow/version
-identity conflict; response-loss recovery; attach not-found; interruption after
+identity conflict; response-loss recovery; `get` not-found; interruption after
 dispatch; no delivery before ready; normal drain, expired drain, late completion,
 repeated release, finalizer ordering, and zero per-delivery references after
 release. External-promise tests cover encoded resolution, rejection,
@@ -526,8 +529,8 @@ Dependencies: U1–U7.
 
 Approach: document the generic core composition first, then provider selection,
 global ID/first-writer semantics, version deployment, durable-await discipline,
-failure/retry/timeout/shutdown contracts, stable step idempotency key, and attach
-recovery. Pack core and the provider independently. Extend ordinary checks with
+failure/retry/timeout/shutdown contracts, stable step idempotency key, and
+`get`-by-ID recovery. Pack core and the provider independently. Extend ordinary checks with
 unit, contract, conformance-self-test, and packaging tests; keep the IntegreSQL
 runtime evaluation explicit.
 

@@ -21,9 +21,10 @@ an upstream Resonate capability unreachable.
    has either the same public name/path or one explicitly documented Effect
    lifecycle substitution.
 2. A user can start from the upstream async-engine documentation and translate
-   calls mechanically: `await` becomes `yield*`, thrown failures become typed
-   failures, and positional arguments become the repository's named request
-   objects.
+   calls mechanically: at the client boundary `await` becomes `yield*`, thrown
+   failures become typed failures, and positional arguments become the
+   repository's named request objects. Workflow Context calls retain upstream
+   positional signatures and eager `DurablePromise` behavior.
 3. `run`, `rpc`, and `get` return Effect-native handles; they do not silently
    wait for `.result()`.
 4. Raw upstream records and option types are imported or inferred from public
@@ -59,6 +60,18 @@ context operations are eager.
 Named request objects are the sole systematic syntax difference, following the
 repository API rule. Request fields retain upstream names wherever possible.
 
+Connection selection remains an Effect dependency rather than duplicated
+client configuration. `url`, `group`, `token`, transport `timeout`, and the
+network instance belong to the selected `ResonateNetwork` Layer. Client Layer
+options expose only async-constructor fields that still apply after a network is
+injected: process identity, TTL, logging, and encryption. Accepting connection
+fields on the client would silently ignore them in the upstream constructor.
+
+The wrapper deliberately corrects one installed SDK 0.11.5 binding defect:
+`ResonateFunc.options` is rebound to its owning client because the SDK returns
+that method unbound. Its accepted options and returned value remain upstream
+types; no new semantics are introduced.
+
 ## Walkthroughs
 
 | ID | Story | Path | Observable result |
@@ -92,8 +105,8 @@ repository API rule. Request fields retain upstream names wherever possible.
 
 - L1: An admitted Effect step either completes during the drain interval or is
   fenced and interrupted before SDK shutdown.
-- L2: A pending Resonate handle remains attachable after local Effect waiting is
-  interrupted.
+- L2: A pending Resonate execution remains retrievable by ID after local Effect
+  waiting is interrupted.
 
 ### Consistency
 
@@ -103,6 +116,10 @@ repository API rule. Request fields retain upstream names wherever possible.
   validation without removing the raw parity operation.
 - C3: The upstream SDK remains a peer dependency and the wrapper does not copy
   private protocol types or deep-import internal modules.
+- C4: An SDK upgrade must pass compile-time key-parity assertions for the client,
+  promise and schedule namespaces, returned handles, registered functions, and
+  async Context before release. New upstream capabilities require an explicit
+  mapping or documented lifecycle substitution rather than silent omission.
 
 ## Protocol
 

@@ -83,6 +83,16 @@ Partial activation failure retains `requestMayHaveCommitted`; recovery uses
 7. **Named request objects remain.** This is the one systematic syntax
    difference from upstream positional calls and follows the established public
    API rule.
+8. **Network configuration has one owner.** Connection selection and credentials
+   remain inputs to the `ResonateNetwork` Layer. The client Layer accepts only
+   constructor fields that the upstream SDK still applies when `network` is
+   supplied.
+9. **One narrow SDK compatibility correction.** Bind the installed SDK 0.11.5
+   `ResonateFunc.options` helper to the owning client; preserve its public input
+   and output types and remove this exception when upstream no longer needs it.
+10. **SDK upgrades are parity-gated.** Compile-time key matrices for the client,
+    namespaces, handles, registered functions, and Context must pass before an
+    SDK version change lands. Every new key is mapped or explicitly documented.
 
 ## Implementation units
 
@@ -154,11 +164,11 @@ brainstorm/dependency/spec/plan documents, and a small consumer example.
 
 Make declarative function groups optional preregistration rather than the only
 way to reach `register`. Document the delivery-race difference between atomic
-preregistration and raw late registration. Replace `attach` and flattened
-promise helpers with canonical `get` and namespaced calls; because the package
-is unreleased, remove rather than perpetuate aliases unless a fixture proves an
-external compatibility need. Link to upstream Resonate docs for operation
-semantics and document only Effect translation, typed overloads, and lifecycle.
+preregistration and raw late registration. Use canonical `get` and namespaced
+promise calls instead of perpetuating earlier wrapper-specific helper designs;
+because the package is unreleased, add no compatibility aliases unless a fixture
+proves an external need. Link to upstream Resonate docs for operation semantics
+and document only Effect translation, typed overloads, and lifecycle.
 
 Tests compare one direct-SDK program with its Effect-wrapped equivalent and run
 the packed consumer against public exports only.
@@ -179,9 +189,9 @@ each supported example mechanically without consulting a second conceptual API.
   (`func`/`args` versus `workflow`/`input`, raw value versus `schema`/`value`).
 - **Context wrapping can accidentally destroy eagerness.** Context methods return
   DurablePromises directly; only ephemeral client Promises become Effects.
-- **Existing tests assume `run` returns the final value.** Migrate them to
-  `const handle = yield* run(...); yield* handle.result()` and retain recovery
-  assertions at both boundaries.
+- **Tests or examples can accidentally collapse invocation and waiting.** Keep
+  `const handle = yield* run(...); yield* handle.result()` explicit and retain
+  recovery assertions at both boundaries.
 
 ## Open questions
 
