@@ -76,22 +76,45 @@ Important constraint: arbitrary non-durable awaits should not be introduced insi
 
 ## Proposed programming model
 
-### Step
+### Step contracts and handler Layers
 
-A `Step` wraps normal Effect business logic.
+A `Step` declares a durable contract. Its implementation is supplied separately
+as a Layer so workflows and clients can import the contract without importing
+worker dependencies.
 
 ```ts
 const ChargeCard = Step.make({
   name: "payments.charge",
   version: 1,
+  input: ChargeCardInput,
+  success: ChargeReceipt,
+  failure: PaymentDeclined,
+})
 
-  execute: (input: ChargeCardInput) =>
+const ChargeCardLive = ChargeCard.toLayer((input) =>
     Effect.gen(function* () {
       const payments = yield* Payments
       return yield* payments.charge(input)
-    }),
+    }))
+```
+
+Persisted execution never selects an implicit latest contract. When a step's
+durable I/O or observable side-effect semantics change, create a new contract
+that preserves its stable Resonate name:
+
+```ts
+const ChargeCardV2 = Step.evolve(ChargeCard, {
+  version: 2,
+  input: ChargeCardInputV2,
+  success: ChargeReceiptV2,
+  failure: PaymentDeclinedV2,
 })
 ```
+
+Workflows evolve under the same rule when their durable I/O or step composition
+changes. Evolution creates a distinct handler and records its immediate
+predecessor, but old versions remain explicitly registered and implemented for
+as long as retained or in-flight executions may require them.
 
 Its useful type information is already present in the Effect value:
 
@@ -101,9 +124,10 @@ Effect<ChargeReceipt, PaymentDeclined, Payments>
        success        typed failure      requirements
 ```
 
-A step should not require separate success/failure schemas just to repeat information TypeScript already knows.
-
-The runtime registers an adapter with Resonate that executes the Effect using the application runtime / layer graph.
+A durable step does require input/success/failure codecs because persisted calls
+can outlive the TypeScript program that created them. The handler Layer retains
+the Effect requirements and the client runtime executes it in the acquired
+application Layer graph.
 
 Conceptually:
 
@@ -111,7 +135,7 @@ Conceptually:
 resonate.register(
   ChargeCard.name,
   async (_ctx, input) => {
-    const exit = await runtime.runPromiseExit(ChargeCard.execute(input))
+    const exit = await runPromiseExit(ChargeCardHandler(input))
     return encodeStepExit(exit) // one Fail -> Failure; defect/interruption reject
   },
 )
@@ -130,8 +154,9 @@ const Checkout = Workflow.make({
   input: CheckoutInput,
   success: CheckoutResult,
   failure: CheckoutFailure,
+})
 
-  execute: async (ctx, input) => {
+const CheckoutLive = Checkout.toLayer(async (ctx, input) => {
     const payment = await ctx.run(ChargeCard, {
       amount: input.total,
       token: input.paymentToken,
@@ -153,8 +178,7 @@ const Checkout = Workflow.make({
       payment: payment.success,
       fulfillment: fulfillment.success,
     })
-  },
-})
+  })
 ```
 
 The workflow API should stay visually close to Resonate rather than hiding durable operations behind Effect combinators.
@@ -181,24 +205,21 @@ const program = Effect.gen(function* () {
 
 ---
 
-## Validation: use schemas only at real trust boundaries
+## Validation: schemas at durable boundaries
 
-Initial idea: validate every step input/output with Effect Schema.
-
-Current direction: do **not** do that by default.
-
-Within one typed TypeScript program, validating every activity boundary duplicates TypeScript checks and adds runtime ceremony without much value.
-
-Use TypeScript as the default contract between workflow steps:
+Workflow and step inputs/outcomes cross a persisted boundary even when both
+ends currently live in one TypeScript application. TypeScript governs local
+calls, while service-free codecs govern the durable representation:
 
 ```text
 Workflow
    |
-   +-- ctx.run(StepA, input) --- TypeScript ---> StepA
-   +-- ctx.run(StepB, input) --- TypeScript ---> StepB
+   +-- ctx.run(StepA, input) --- encode/persist/decode ---> StepA handler
+   +-- ctx.run(StepB, input) --- encode/persist/decode ---> StepB handler
 ```
 
-Runtime schemas are most valuable where the value comes from an untyped or long-lived boundary.
+This catches old or foreign JSON that is structurally durable but invalid for
+the exact function version.
 
 ### Workflow ingress
 
@@ -237,19 +258,8 @@ rather than relying only on a compile-time `ctx.promise<Approval>()` generic whe
 
 ### RPC validation
 
-Cross-process RPC technically crosses a wire boundary, but validating every typed RPC should not be mandatory in v1.
-
-Possible future option:
-
-```ts
-Step.make({
-  name: "payments.charge",
-  codec: ChargeCardCodec,
-  execute: ...,
-})
-```
-
-Use it when interoperability or independent deployment makes runtime validation worth the cost.
+`ctx.rpc` uses the same versioned step contract and codecs as `ctx.run`.
+Independent deployment therefore does not require a second validation API.
 
 ---
 
@@ -318,21 +328,17 @@ If a step returns something like:
 
 TypeScript can type-check it, but the value may not round-trip through Resonate persistence with the same semantics.
 
-That is primarily a serialization problem, not a reason to force schemas on every step.
-
-Provide an opt-in codec escape hatch for values that need a deliberate durable representation.
-
-Possible shape:
+That serialization problem is expressed directly by the required step codecs:
 
 ```ts
 Step.make({
   name: "foo",
-  codec: FooCodec,
-  execute: ...,
+  version: 1,
+  input: FooInput,
+  success: FooSuccess,
+  failure: FooFailure,
 })
 ```
-
-Exact codec API is intentionally unresolved.
 
 ---
 
@@ -432,11 +438,9 @@ A major value of the wrapper is letting steps depend on ordinary Effect services
 Effect<A, E, Database | S3 | HttpClient | Payments>
 ```
 
-The worker/runtime should build one managed Effect runtime from Layers and use it to execute registered step Effects.
-
-Open design question: how much should step registration infer/accumulate `R` requirements versus requiring an explicitly supplied application Layer?
-
-Favor simple explicit runtime composition over advanced type gymnastics unless the latter materially improves usability.
+The worker captures the context acquired through ordinary Layer composition and
+uses it to execute registered step handler Effects. It does not accept an
+application Layer as configuration or build a nested `ManagedRuntime`.
 
 ---
 
@@ -446,20 +450,19 @@ Start small:
 
 1. `ResonateClient` Effect service with scoped lifecycle.
 2. Effect Layers for Local, HTTP, and Postgres Resonate networks.
-3. `Step.make` for `Effect<A, E, R>` activities.
-4. `Workflow.make` around Resonate async/await workflows.
+3. Schema-first `Step.make` contracts with Effect handler Layers.
+4. Schema-first `Workflow.make` contracts with Resonate async handler Layers.
 5. Typed `WorkflowContext.run/rpc` accepting `Step` definitions.
-6. Runtime schema validation at workflow ingress.
+6. Runtime codec validation at every persisted workflow and step boundary.
 7. Runtime schema validation for externally supplied durable promise/signal values.
 8. JSON-compatible durable values by default.
-9. Optional codecs for values needing custom durable serialization.
+9. Required service-free codecs with JSON-compatible encoded forms.
 10. Tracing/spans around workflow and step execution.
 11. Contract/integration tests against Local and Postgres networks.
 
 Explicitly defer:
 
 - writing entire durable workflows as `Effect.gen` programs;
-- mandatory schema validation between every step;
 - replacing Resonate's Postgres network with an Effect-specific implementation;
 - treating S3 as a Resonate execution backend;
 - clever automatic workflow migration/versioning before real use cases exist.

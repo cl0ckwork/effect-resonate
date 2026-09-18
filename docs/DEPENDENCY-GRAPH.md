@@ -298,14 +298,18 @@ A step may naturally require normal application services:
 const ChargeCard = Step.make({
   name: "payments.charge",
   version: 1,
-  execute: (input: ChargeInput) =>
+  input: ChargeInput,
+  success: ChargeReceipt,
+  failure: PaymentDeclined,
+})
+
+const ChargeCardLive = ChargeCard.toLayer((input) =>
     Effect.gen(function* () {
       const payments = yield* Payments
       const tracer = yield* Tracer
 
       return yield* payments.charge(input)
-    }),
-})
+    }))
 ```
 
 Its Effect already communicates its requirements:
@@ -314,7 +318,9 @@ Its Effect already communicates its requirements:
 Effect<ChargeReceipt, PaymentDeclined, Payments | Tracer>
 ```
 
-The worker runtime should execute that Effect using the application's supplied Layer graph.
+The step contract remains implementation-free. Its handler Layer communicates
+the Effect requirements, and the worker executes it using the application's
+supplied Layer graph.
 
 Do not introduce a separate service map such as:
 
@@ -352,7 +358,7 @@ Application Effect
       +-- HttpNetwork
       +-- PostgresNetwork
 
-Step Effect<A, E, R>
+Step contract --toLayer--> Effect<A, E, R> handler
       |
       | requires
       v
