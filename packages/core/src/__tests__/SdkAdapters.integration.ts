@@ -209,7 +209,64 @@ describe("SDK adapter contracts", () => {
     }
   })
 
-  it("preserves structured defect identity through the SDK rejection codec", async () => {
+  it("lets Resonate classify an original Effect defect with nonRetryableErrors", async () => {
+    const resonate = new Resonate()
+    let attempts = 0
+    const Broken = Step.make({
+      name: "inventory.non-retryable",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Never,
+      failure: Schema.Never
+    })
+    const BrokenLive = Broken.toLayer(() => Effect.suspend(() => {
+        attempts += 1
+        return Effect.die(new TypeError("do not retry"))
+      }))
+    const Checkout = Workflow.make({
+      name: "checkout.non-retryable",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Never,
+      failure: Schema.Never
+    })
+    const CheckoutLive = Checkout.toLayer(async (context) => context.run(Broken, null, {
+      retryPolicy: new Constant({ delay: 0, maxRetries: 3 }),
+      nonRetryableErrors: [TypeError]
+    }))
+    const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, BrokenLive))
+    await runtime.context()
+    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+
+    resonate.register(Broken.name, StepAdapter.make(Broken, runtime.runPromise), {
+      version: Broken.version
+    })
+    const checkout = resonate.register(
+      Checkout.name,
+      WorkflowAdapter.make(Checkout, checkoutHandler),
+      { version: Checkout.version }
+    )
+
+    try {
+      const handle = await checkout.run("checkout-non-retryable", null)
+      const rejected = await rejectionOf(handle.result())
+
+      assert.deepInclude(rejected, {
+        _tag: "@effect-resonate/core/ExecutionRejected",
+        executionId: "checkout-non-retryable",
+        definitionName: Checkout.name,
+        reason: "Defect"
+      })
+      assert.strictEqual(attempts, 1)
+    } finally {
+      await runtime.runPromise(AdapterSupervisor.close)
+      await runtime.runPromise(AdapterSupervisor.drain)
+      await resonate.stop()
+      await runtime.dispose()
+    }
+  })
+
+  it("normalizes an uncaught child Error at the typed workflow boundary", async () => {
     const resonate = new Resonate()
     let attempts = 0
 
@@ -254,8 +311,8 @@ describe("SDK adapter contracts", () => {
 
       assert.deepStrictEqual(rejected, {
         _tag: "@effect-resonate/core/ExecutionRejected",
-        executionId: "checkout-broken:0",
-        definitionName: "inventory.broken",
+        executionId: "checkout-broken",
+        definitionName: "checkout.broken",
         definitionVersion: 1,
         reason: "Defect"
       })

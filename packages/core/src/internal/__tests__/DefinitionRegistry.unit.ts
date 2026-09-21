@@ -51,6 +51,27 @@ describe("DefinitionRegistry", () => {
     })
   })
 
+  it("rejects literal non-positive and fractional versions at runtime", async () => {
+    for (const version of [0, -1, 1.5]) {
+      const Invalid = Step.make({
+        name: `invalid.version.${version}`,
+        version,
+        input: Schema.Null,
+        success: Schema.Null,
+        failure: Schema.Never
+      })
+
+      const failure = await Effect.runPromise(Effect.flip(
+        DefinitionRegistry.make(ResonateFunctions.make(Invalid))
+      ))
+
+      assert.deepInclude(failure, {
+        _tag: "@effect-resonate/core/InvalidDefinition",
+        issue: "VersionNotPositiveInteger"
+      })
+    }
+  })
+
   it("rejects duplicate name/version pairs across function kinds", async () => {
     const WorkflowWithSameIdentity = Workflow.make({
       name: NullStep.name,
@@ -88,5 +109,83 @@ describe("DefinitionRegistry", () => {
       _tag: "@effect-resonate/core/InvalidDefinition",
       issue: "VersionNotIncreasing"
     })
+  })
+
+  it("validates the identity of every evolution ancestor", async () => {
+    const invalidVersion: number = Number.NaN
+    const InvalidAncestor = Step.make({
+      name: NullStep.name,
+      version: invalidVersion,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const Current = Step.evolve(InvalidAncestor, {
+      version: 2,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+
+    const failure = await Effect.runPromise(Effect.flip(
+      DefinitionRegistry.make(ResonateFunctions.make(Current))
+    ))
+
+    assert.deepInclude(failure, {
+      _tag: "@effect-resonate/core/InvalidDefinition",
+      definitionKind: "Step",
+      issue: "VersionNotPositiveInteger"
+    })
+  })
+
+  it("rejects cyclic evolution lineage", async () => {
+    const SelfReferential = { ...NullStep }
+    Object.defineProperty(SelfReferential, "previous", { value: SelfReferential })
+
+    const failure = await Effect.runPromise(Effect.flip(
+      DefinitionRegistry.make(ResonateFunctions.make(SelfReferential))
+    ))
+
+    assert.deepInclude(failure, {
+      _tag: "@effect-resonate/core/InvalidDefinition",
+      definitionKind: "Step",
+      issue: "InvalidEvolutionLineage"
+    })
+  })
+
+  it("rejects ancestors with a different name or definition kind", async () => {
+    const Current = Step.evolve(NullStep, {
+      version: 2,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const WrongName = {
+      ...Current,
+      previous: { ...NullStep, name: "inventory.release" }
+    } as typeof Current
+    const WorkflowAncestor = Workflow.make({
+      name: NullStep.name,
+      version: NullStep.version,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const WrongKind = {
+      ...Current,
+      previous: WorkflowAncestor
+    } as unknown as typeof Current
+
+    for (const definition of [WrongName, WrongKind]) {
+      const failure = await Effect.runPromise(Effect.flip(
+        DefinitionRegistry.make(ResonateFunctions.make(definition))
+      ))
+
+      assert.deepInclude(failure, {
+        _tag: "@effect-resonate/core/InvalidDefinition",
+        definitionKind: "Step",
+        issue: "InvalidEvolutionLineage"
+      })
+    }
   })
 })

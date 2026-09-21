@@ -5,56 +5,6 @@ import { StepContext, type StepContextService } from "./StepContext.js"
 const TypeId: unique symbol = Symbol.for("@effect-resonate/core/Step")
 const HandlerTypeId: unique symbol = Symbol.for("@effect-resonate/core/Step/Handler")
 
-export type PositiveVersion<Version extends number> = number extends Version ? Version
-  : `${Version}` extends `${bigint}` ? `${Version}` extends `0` | `-${string}` ? never : Version
-  : never
-
-type VersionConstraint<Version extends number> = number extends Version ? unknown
-  : PositiveVersion<Version> extends never ? { readonly __invalidVersion: never }
-  : unknown
-
-type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-
-type DigitRank = {
-  readonly "0": readonly []
-  readonly "1": readonly [unknown]
-  readonly "2": readonly [unknown, unknown]
-  readonly "3": readonly [unknown, unknown, unknown]
-  readonly "4": readonly [unknown, unknown, unknown, unknown]
-  readonly "5": readonly [unknown, unknown, unknown, unknown, unknown]
-  readonly "6": readonly [unknown, unknown, unknown, unknown, unknown, unknown]
-  readonly "7": readonly [unknown, unknown, unknown, unknown, unknown, unknown, unknown]
-  readonly "8": readonly [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown]
-  readonly "9": readonly [unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown]
-}
-
-type Characters<Value extends string, Accumulator extends ReadonlyArray<unknown> = readonly []> =
-  Value extends `${infer _Head}${infer Tail}` ? Characters<Tail, readonly [...Accumulator, unknown]> : Accumulator
-
-type IsLonger<Left extends ReadonlyArray<unknown>, Right extends ReadonlyArray<unknown>> =
-  Left extends readonly [...Right, ...infer Remaining] ? Remaining extends readonly [] ? false : true : false
-
-type GreaterSameLength<Left extends string, Right extends string> =
-  Left extends `${infer LeftHead extends Digit}${infer LeftTail}`
-    ? Right extends `${infer RightHead extends Digit}${infer RightTail}`
-      ? LeftHead extends RightHead ? GreaterSameLength<LeftTail, RightTail>
-      : IsLonger<DigitRank[LeftHead], DigitRank[RightHead]>
-    : false
-  : false
-
-type GreaterThan<Left extends number, Right extends number> =
-  IsLonger<Characters<`${Left}`>, Characters<`${Right}`>> extends true ? true
-    : IsLonger<Characters<`${Right}`>, Characters<`${Left}`>> extends true ? false
-    : GreaterSameLength<`${Left}`, `${Right}`>
-
-export type NewerVersionConstraint<Previous extends number, Version extends number> =
-  VersionConstraint<Version> & (
-    number extends Previous | Version ? unknown
-      : PositiveVersion<Version> extends never ? unknown
-      : GreaterThan<Version, Previous> extends true ? unknown
-      : { readonly __versionMustIncrease: never }
-  )
-
 /** A service-free codec whose encoded representation can cross a durable boundary. */
 export type StepCodec<Value, Encoded extends DurableValue = DurableValue> = Schema.Codec<
   Value,
@@ -287,7 +237,7 @@ export const make = <
     SuccessEncoded,
     Failure,
     FailureEncoded
-  > & VersionConstraint<Version>
+  >
 ): Step<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, undefined> => {
   return makeDefinition(options, undefined)
 }
@@ -305,7 +255,6 @@ export const evolve = <
 >(
   previous: Definition,
   options: EvolveOptions<Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>
-    & NewerVersionConstraint<Definition["version"], Version>
 ): Step<
   Definition["name"],
   Version,

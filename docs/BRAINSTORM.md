@@ -189,11 +189,7 @@ Outside the durable workflow world, applications should get an Effect service:
 
 ```ts
 const program = Effect.gen(function*() {
-  const handle = yield* ResonateClient.run({
-    workflow: Checkout,
-    id: `checkout:${order.id}`,
-    input
-  })
+  const handle = yield* ResonateClient.run(`checkout:${order.id}`, Checkout, input)
   return yield* handle.result()
 })
 ```

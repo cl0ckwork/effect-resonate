@@ -150,7 +150,7 @@ describe("StepAdapter", () => {
     await runtime.dispose()
   })
 
-  it("captures a synchronous throw from execute as Defect", async () => {
+  it("passes a synchronous Error throw through unchanged", async () => {
     const definition = Step.make({
       name: "inventory.throw",
       version: 1,
@@ -158,12 +158,34 @@ describe("StepAdapter", () => {
       success: Schema.Never,
       failure: Schema.Never
     })
+    const defect = new TypeError("boom")
     const runtime = makeRuntime(definition, (): Effect.Effect<never> => {
-        throw new TypeError("boom")
+        throw defect
     })
     await runtime.context()
 
-    await expectReason(StepAdapter.make(definition, runtime.runPromise)(info, null), "Defect")
+    assert.strictEqual(
+      await rejectionOf(StepAdapter.make(definition, runtime.runPromise)(info, null)),
+      defect
+    )
+    await runtime.dispose()
+  })
+
+  it("passes an Error defect through unchanged", async () => {
+    const definition = Step.make({
+      name: "inventory.typed-defect",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Never,
+      failure: Schema.Never
+    })
+    const defect = new TypeError("original defect")
+    const runtime = makeRuntime(definition, () => Effect.die(defect))
+    await runtime.context()
+
+    const rejected = await rejectionOf(StepAdapter.make(definition, runtime.runPromise)(info, null))
+
+    assert.strictEqual(rejected, defect)
     await runtime.dispose()
   })
 

@@ -12,6 +12,21 @@ import * as DurableRejection from "./DurableRejection.js"
 import { decodeWorkflowInput, durableCodec } from "./SchemaBoundary.js"
 import * as WorkflowContextImpl from "./WorkflowContextImpl.js"
 
+const sourceOf = <Definition extends Workflow.Any>(
+  definition: Definition,
+  executionId: string,
+  rejected: ExecutionRejected
+): DurableRejection.Source | undefined =>
+  rejected.executionId === executionId &&
+    rejected.definitionName === definition.name &&
+    rejected.definitionVersion === definition.version
+    ? undefined
+    : {
+      executionId: rejected.executionId,
+      definitionName: rejected.definitionName,
+      definitionVersion: rejected.definitionVersion
+    }
+
 const rejection = <Definition extends Workflow.Any>(
   definition: Definition,
   executionId: string,
@@ -19,10 +34,20 @@ const rejection = <Definition extends Workflow.Any>(
 ): DurableRejection.DurableExecutionRejected => {
   const durable = DurableRejection.decode(cause)
   if (Option.isSome(durable)) {
-    return DurableRejection.encode(durable.value)
+    return DurableRejection.make(
+      definition,
+      executionId,
+      durable.value.reason,
+      sourceOf(definition, executionId, durable.value)
+    )
   }
   if (cause instanceof ExecutionRejected) {
-    return DurableRejection.encode(cause)
+    return DurableRejection.make(
+      definition,
+      executionId,
+      cause.reason,
+      sourceOf(definition, executionId, cause)
+    )
   }
   return DurableRejection.make(
     definition,

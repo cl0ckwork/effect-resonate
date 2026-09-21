@@ -1,6 +1,5 @@
 import { Context, Layer, type Result, type Schema } from "effect"
 import type { Type as DurableValue } from "./DurableValue.js"
-import type { NewerVersionConstraint, PositiveVersion } from "./Step.js"
 import type { WorkflowContext } from "./WorkflowContext.js"
 
 const TypeId: unique symbol = Symbol.for("@effect-resonate/core/Workflow")
@@ -12,10 +11,6 @@ export type WorkflowCodec<Value, Encoded extends DurableValue = DurableValue> = 
   never,
   never
 >
-
-type VersionConstraint<Version extends number> = number extends Version ? unknown
-  : PositiveVersion<Version> extends never ? { readonly __invalidVersion: never }
-  : unknown
 
 export interface Handler<Definition extends Any> {
   readonly [HandlerTypeId]: Definition
@@ -228,7 +223,7 @@ export const make = <
     SuccessEncoded,
     Failure,
     FailureEncoded
-  > & VersionConstraint<Version>
+  >
 ): Workflow<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, undefined> => {
   return makeDefinition(options, undefined)
 }
@@ -246,7 +241,6 @@ export const evolve = <
 >(
   previous: Definition,
   options: EvolveOptions<Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>
-    & NewerVersionConstraint<Definition["version"], Version>
 ): Workflow<
   Definition["name"],
   Version,

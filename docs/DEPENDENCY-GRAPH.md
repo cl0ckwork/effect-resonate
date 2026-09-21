@@ -169,11 +169,7 @@ Application code depends only on the client service:
 
 ```ts
 const program = Effect.gen(function*() {
-  const handle = yield* ResonateClient.run({
-    workflow: Checkout,
-    id: "checkout-123",
-    input
-  })
+  const handle = yield* ResonateClient.run("checkout-123", Checkout, input)
   return yield* handle.result()
 }).pipe(
   Effect.provide(PostgresResonate)

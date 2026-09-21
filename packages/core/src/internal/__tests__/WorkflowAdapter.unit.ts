@@ -194,7 +194,7 @@ describe("WorkflowAdapter", () => {
     })
   })
 
-  it("preserves a child durable execution rejection", async () => {
+  it("roots a child rejection at the workflow while preserving child provenance", async () => {
     const step = Step.make({
       name: "inventory.broken",
       version: 2,
@@ -231,10 +231,15 @@ describe("WorkflowAdapter", () => {
 
     assert.deepStrictEqual(rejected, {
       _tag: "@effect-resonate/core/ExecutionRejected",
-      executionId: "child-1",
-      definitionName: step.name,
-      definitionVersion: step.version,
-      reason: "Defect"
+      executionId: info.id,
+      definitionName: definition.name,
+      definitionVersion: definition.version,
+      reason: "Defect",
+      source: {
+        executionId: "child-1",
+        definitionName: step.name,
+        definitionVersion: step.version
+      }
     })
   })
 })

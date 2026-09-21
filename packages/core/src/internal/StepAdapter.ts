@@ -38,7 +38,7 @@ type Disposition =
   }
   | {
     readonly _tag: "Rejected"
-    readonly value: DurableRejection.DurableExecutionRejected
+    readonly throwable: unknown
   }
 
 const rejected = <
@@ -46,10 +46,13 @@ const rejected = <
 >(
   definition: Definition,
   executionId: string,
-  reason: DurableRejection.DurableExecutionRejected["reason"]
+  reason: DurableRejection.DurableExecutionRejected["reason"],
+  cause?: unknown
 ): Disposition => ({
   _tag: "Rejected",
-  value: DurableRejection.make(definition, executionId, reason)
+  throwable: cause instanceof Error
+    ? cause
+    : DurableRejection.make(definition, executionId, reason)
 })
 
 const classify = <
@@ -75,7 +78,11 @@ const classify = <
         ? rejected(definition, executionId, "ContractViolation")
         : { _tag: "Resolved" as const, value: encoded.success }
     }
-    return rejected(definition, executionId, rejectedReason(cause))
+    const reason = rejectedReason(cause)
+    const failure = cause.reasons.length === 1 && Cause.isDieReason(cause.reasons[0]!)
+      ? cause.reasons[0]!.defect
+      : undefined
+    return rejected(definition, executionId, reason, failure)
   }
 })
 
@@ -124,8 +131,8 @@ export const make = <
         throw DurableRejection.make(definition, context.id, rejectedReason(cause))
       },
       Success: ({ value }) => Match.valueTags(value, {
-        Rejected: ({ value }) => {
-          throw value
+        Rejected: ({ throwable }) => {
+          throw throwable
         },
         Resolved: ({ value }) => value
       })

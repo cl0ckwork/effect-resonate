@@ -80,6 +80,12 @@ const ResonateOperations = [
 
 const ResonateOperation = Schema.Literals(ResonateOperations)
 
+const ExecutionRejectionSource = Schema.Struct({
+  executionId: Schema.NonEmptyString,
+  definitionName: Schema.NonEmptyString,
+  definitionVersion: Schema.Int.check(Schema.isGreaterThan(0))
+})
+
 /** A definition was constructed with an invalid public identity. */
 export class InvalidDefinition extends Schema.TaggedError<InvalidDefinition>()(
   "@effect-resonate/core/InvalidDefinition",
@@ -150,7 +156,8 @@ export class ExecutionRejected extends Schema.TaggedError<ExecutionRejected>()(
     executionId: Schema.String,
     definitionName: Schema.String,
     definitionVersion: Schema.Int,
-    reason: Schema.Literals(["Defect", "Interrupted", "CompositeCause", "ContractViolation", "Unknown"])
+    reason: Schema.Literals(["Defect", "Interrupted", "CompositeCause", "ContractViolation", "Unknown"]),
+    source: Schema.optional(ExecutionRejectionSource)
   }
 ) {}
 

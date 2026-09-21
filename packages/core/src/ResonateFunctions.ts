@@ -6,11 +6,7 @@ const TypeId = "@effect-resonate/core/ResonateFunctions"
 export type AnyFunction = Step.Any | Workflow.Any
 
 /** A closed, immutable collection of Resonate functions. */
-export interface ResonateFunctions<in out Function extends AnyFunction> {
-  // Matches the class-style constructor shape used by Effect's RpcGroup.
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  new(_: never): {}
-
+export interface ResonateFunctions<out Function extends AnyFunction> {
   readonly [TypeId]: typeof TypeId
   readonly functions: ReadonlyArray<Function>
 
@@ -43,27 +39,21 @@ export type Handlers<Group> =
   | Step.Step.Implementation<Steps<Group>>
   | Workflow.Workflow.Implementation<Workflows<Group>>
 
-const Proto = {
-  [TypeId]: TypeId,
-  add(this: ResonateFunctions<AnyFunction>, ...functions: ReadonlyArray<AnyFunction>) {
-    return makeProto([...this.functions, ...functions])
-  },
-  merge(this: ResonateFunctions<AnyFunction>, ...groups: ReadonlyArray<Any>) {
-    return makeProto([
-      ...this.functions,
-      ...groups.flatMap((group) => group.functions)
-    ])
-  }
-}
-
-const makeProto = <Function extends AnyFunction>(
+const makeGroup = <Function extends AnyFunction>(
   functions: ReadonlyArray<Function>
-): ResonateFunctions<Function> =>
-  Object.assign(function() {}, Proto, {
-    functions: Object.freeze([...functions])
-  }) as unknown as ResonateFunctions<Function>
+): ResonateFunctions<Function> => Object.freeze({
+  [TypeId]: TypeId,
+  functions: Object.freeze([...functions]),
+  add: <const Added extends ReadonlyArray<AnyFunction>>(...added: Added) =>
+    makeGroup<Function | Added[number]>([...functions, ...added]),
+  merge: <const Groups extends ReadonlyArray<Any>>(...groups: Groups) =>
+    makeGroup<Function | Functions<Groups[number]>>(([
+      ...functions,
+      ...groups.flatMap((group) => group.functions)
+    ]) as unknown as ReadonlyArray<Function | Functions<Groups[number]>>)
+})
 
 /** Creates a flat function collection from steps and workflows. */
 export const make = <const Functions extends ReadonlyArray<AnyFunction>>(
   ...functions: Functions
-): ResonateFunctions<Functions[number]> => makeProto(functions)
+): ResonateFunctions<Functions[number]> => makeGroup(functions)

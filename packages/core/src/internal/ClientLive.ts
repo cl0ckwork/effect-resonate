@@ -5,38 +5,24 @@ import {
   type ResonateHandle as SdkResonateHandle,
   type ResonateSchedule as SdkResonateSchedule
 } from "@resonatehq/sdk/async"
-import { Context, Duration, Effect, Match, Option, type Scope } from "effect"
+import { Context, Duration, Effect, Fiber, Match, Option, Schema, type Scope } from "effect"
 import {
+  DefinitionConflict,
+  DurableProtocolError,
   type ExecutionRejected,
   InvalidClientConfiguration,
   type ResonateSdkError
 } from "../CoreExecutionError.js"
 import type {
-  GetRequest,
-  InvocationRequest,
   LayerOptions,
-  Options,
   OptionsInput,
-  PromiseCreateRequest,
-  PromiseCreateWithTaskRequest,
-  PromiseGetRequest,
-  PromiseRegisterCallbackRequest,
-  PromiseRegisterListenerRequest,
-  RawInvocationRequest,
-  RawPromiseSettleRequest,
-  RegisterRequest,
+  PromisesService,
+  RegisterOptions,
   ResonateClientService,
   ResonateFunc,
   ResonateHandle,
   ResonateSchedule,
-  ScheduleCreateRequest,
-  ScheduleDeleteRequest,
-  ScheduleGetRequest,
-  ScheduleRequest,
-  SetDependencyRequest,
-  TypedGetRequest,
-  TypedInvocationRequest,
-  TypedPromiseSettleRequest,
+  SchedulesService,
   TypedResultError
 } from "../ResonateClient.js"
 import type * as ResonateFunctions from "../ResonateFunctions.js"
@@ -87,9 +73,30 @@ const typedHandle = <Definition extends Workflow.Any>(
     Workflow.Workflow.Success<Definition>,
     TypedResultError<Definition>
   > => sdkEffect("handle.result", true, () => handle.result()).pipe(
-    Effect.catch((error): Effect.Effect<never, ExecutionRejected | ResonateSdkError> => {
+    Effect.catch((error): Effect.Effect<
+      never,
+      DefinitionConflict | DurableProtocolError | ExecutionRejected | ResonateSdkError
+    > => {
       const rejection = DurableRejection.decode(error.cause)
-      return Option.isSome(rejection) ? Effect.fail(rejection.value) : Effect.fail(error)
+      if (Option.isNone(rejection)) {
+        return Effect.fail(error)
+      }
+      if (rejection.value.executionId !== handle.id) {
+        return Effect.fail(new DurableProtocolError({ issue: "InvalidDefinitionIdentity" }))
+      }
+      if (
+        rejection.value.definitionName !== workflow.name ||
+        rejection.value.definitionVersion !== workflow.version
+      ) {
+        return Effect.fail(new DefinitionConflict({
+          executionId: handle.id,
+          expectedName: workflow.name,
+          expectedVersion: workflow.version,
+          actualName: rejection.value.definitionName,
+          actualVersion: rejection.value.definitionVersion
+        }))
+      }
+      return Effect.fail(rejection.value)
     }),
     Effect.flatMap((value) => Effect.fromResult(
       DurableOutcome.decodeWorkflowResult(workflow, handle.id, value)
@@ -107,88 +114,87 @@ const scheduleHandle = (handle: SdkResonateSchedule): ResonateSchedule => ({
   delete: () => sdkEffect("schedule.delete", true, () => handle.delete())
 })
 
-const withOptions = (
-  args: ReadonlyArray<unknown> | undefined,
-  options: Options | undefined
-): ReadonlyArray<unknown> => options === undefined ? args ?? [] : [...args ?? [], options]
-
 const invokeRaw = (
   operation: "run" | "rpc",
   resonate: Resonate,
-  request: RawInvocationRequest<AnyFunc | string>
+  id: string,
+  func: AnyFunc | string,
+  args: ReadonlyArray<unknown>
 ): Effect.Effect<ResonateHandle<unknown>, ResonateSdkError> => sdkEffect(
   operation,
   true,
-  () => resonate[operation]<unknown>(
-    request.id,
-    request.func,
-    ...withOptions(request.args, request.options)
-  )
+  () => resonate[operation]<unknown>(id, func, ...args)
 ).pipe(Effect.map(rawHandle))
 
 const invokeTyped = <Definition extends Workflow.Any>(
   operation: "run" | "rpc",
   resonate: Resonate,
-  request: TypedInvocationRequest<Definition>
+  id: string,
+  workflow: Definition,
+  inputValue: unknown,
+  options: OptionsInput
 ) => Effect.fromResult(encodeWorkflowInput(
-  request.workflow.input as Workflow.WorkflowCodec<Workflow.Workflow.Input<Definition>>,
-  request.input,
-  request.workflow.name,
-  request.workflow.version
+  workflow.input as Workflow.WorkflowCodec<unknown>,
+  inputValue,
+  workflow.name,
+  workflow.version
 )).pipe(
   Effect.flatMap((input) => sdkEffect(
     operation,
     true,
     () => resonate[operation]<unknown>(
-      request.id,
-      request.workflow.name,
+      id,
+      workflow.name,
       input,
-      resonate.options({ ...request.options, version: request.workflow.version })
+      resonate.options({ ...options, version: workflow.version })
     )
   )),
-  Effect.map((handle) => typedHandle(request.workflow, handle))
+  Effect.map((handle) => typedHandle(workflow, handle))
 )
 
 const get = (
   resonate: Resonate,
-  request: GetRequest | TypedGetRequest<Workflow.Any>
+  id: string,
+  workflow: Workflow.Any | undefined
 ): Effect.Effect<ResonateHandle<unknown, unknown>, ResonateSdkError> => sdkEffect(
   "get",
   false,
-  () => resonate.get(request.id)
-).pipe(Effect.map((handle) => "workflow" in request
-  ? typedHandle(request.workflow, handle)
-  : rawHandle(handle)))
+  () => resonate.get(id)
+).pipe(Effect.map((handle) => workflow === undefined
+  ? rawHandle(handle)
+  : typedHandle(workflow, handle)))
 
 const registeredFunction = <Func extends AnyFunc>(
   resonate: Resonate,
   registered: ReturnType<Resonate["register"]>
 ): ResonateFunc<Func> => ({
-  run: (request) => sdkEffect(
+  run: (...args) => sdkEffect(
     "run",
     true,
-    () => registered.run(request.id, ...withOptions(request.args, request.options))
+    () => registered.run(...args)
   ).pipe(Effect.map(rawHandle)) as ReturnType<ResonateFunc<Func>["run"]>,
-  rpc: (request) => sdkEffect(
+  rpc: (...args) => sdkEffect(
     "rpc",
     true,
-    () => registered.rpc(request.id, ...withOptions(request.args, request.options))
+    () => registered.rpc(...args)
   ).pipe(Effect.map(rawHandle)) as ReturnType<ResonateFunc<Func>["rpc"]>,
   // The SDK 0.11.5 function helper exposes this method unbound. Use the owning
   // client builder so the documented operation works without changing its data.
-  options: (request?: OptionsInput) => sdkSync("options", false, () => resonate.options(request))
+  options: (request) => sdkSync("options", false, () => resonate.options(request as OptionsInput))
 })
 
 const registerRaw = <Func extends AnyFunc>(
   resonate: Resonate,
-  request: RegisterRequest<Func>
+  nameOrFunc: string | Func,
+  funcOrOptions: Func | RegisterOptions | undefined,
+  options: RegisterOptions | undefined
 ): Effect.Effect<ResonateFunc<Func>, ResonateSdkError> => sdkSync(
   "register",
   false,
   () => {
-    const registered = "name" in request
-      ? resonate.register(request.name, request.func, request.options)
-      : resonate.register(request.func, request.options)
+    const registered = typeof nameOrFunc === "string"
+      ? resonate.register(nameOrFunc, funcOrOptions as Func, options)
+      : resonate.register(nameOrFunc, funcOrOptions as RegisterOptions)
     return registeredFunction<Func>(resonate, registered)
   }
 )
@@ -255,13 +261,15 @@ const settleTyped = <Value>(
   operation: "promises.resolve" | "promises.reject" | "promises.cancel",
   resonate: Resonate,
   codec: Codec,
-  request: TypedPromiseSettleRequest<Value, never>
-) => Effect.fromResult(encodeWorkflowPayload(request.schema, request.value)).pipe(
+  id: string,
+  schema: Workflow.WorkflowCodec<Value>,
+  value: Value
+) => Effect.fromResult(encodeWorkflowPayload(schema, value)).pipe(
   Effect.flatMap((encoded) => sdkEffect(
     operation,
     true,
     () => resonate.promises[operation.slice("promises.".length) as "resolve" | "reject" | "cancel"](
-      request.id,
+      id,
       codec.encode(encoded)
     )
   ))
@@ -305,9 +313,14 @@ export const make = <Group extends ResonateFunctions.Any>(
   }))
   sdkOwnsNetwork = true
 
-  const shutdown = yield* Effect.cached(
-    release(resonate, gated, parsedDrainTimeout.value).pipe(Effect.provide(services))
+  const shutdownOwner = yield* Effect.cached(
+    release(resonate, gated, parsedDrainTimeout.value).pipe(
+      Effect.provide(services),
+      Effect.forkDetach,
+      Effect.uninterruptible
+    )
   )
+  const shutdown = shutdownOwner.pipe(Effect.flatMap(Fiber.join))
   yield* Effect.addFinalizer(() => shutdown.pipe(Effect.orDie))
 
   yield* registerDefinitions(resonate, registry.definitions, services)
@@ -316,68 +329,78 @@ export const make = <Group extends ResonateFunctions.Any>(
 
   const promiseSettle = (
     operation: "resolve" | "reject" | "cancel",
-    request: RawPromiseSettleRequest | TypedPromiseSettleRequest<unknown, never>
-  ) => "schema" in request
-    ? settleTyped(`promises.${operation}`, resonate, codec, request)
-    : sdkEffect(`promises.${operation}`, true, () => resonate.promises[operation](request.id, request.options))
+    args: ReadonlyArray<unknown>
+  ) => Schema.isSchema(args[1])
+    ? settleTyped(
+      `promises.${operation}`,
+      resonate,
+      codec,
+      args[0] as string,
+      args[1] as Workflow.WorkflowCodec<unknown>,
+      args[2]
+    )
+    : sdkEffect(`promises.${operation}`, true, () => (
+      resonate.promises[operation] as (...values: ReadonlyArray<unknown>) => Promise<unknown>
+    )(...args))
 
-  return {
-    register: (request) => registerRaw(resonate, request),
-    setDependency: ({ name, value }: SetDependencyRequest) =>
+  const promises = {
+    get: (...args: Parameters<typeof resonate.promises.get>) =>
+      sdkEffect("promises.get", false, () => resonate.promises.get(...args)),
+    create: (...args: Parameters<typeof resonate.promises.create>) =>
+      sdkEffect("promises.create", true, () => resonate.promises.create(...args)),
+    createWithTask: (...args: Parameters<typeof resonate.promises.createWithTask>) =>
+      sdkEffect("promises.createWithTask", true, () => resonate.promises.createWithTask(...args)),
+    resolve: ((...args: ReadonlyArray<unknown>) => promiseSettle("resolve", args)) as PromisesService["resolve"],
+    reject: ((...args: ReadonlyArray<unknown>) => promiseSettle("reject", args)) as PromisesService["reject"],
+    cancel: ((...args: ReadonlyArray<unknown>) => promiseSettle("cancel", args)) as PromisesService["cancel"],
+    registerCallback: (...args: Parameters<typeof resonate.promises.registerCallback>) =>
+      sdkEffect("promises.registerCallback", true, () => resonate.promises.registerCallback(...args)),
+    registerListener: (...args: Parameters<typeof resonate.promises.registerListener>) =>
+      sdkEffect("promises.registerListener", true, () => resonate.promises.registerListener(...args))
+  } satisfies PromisesService
+
+  const schedules = {
+    get: (...args: Parameters<typeof resonate.schedules.get>) =>
+      sdkEffect("schedules.get", false, () => resonate.schedules.get(...args)),
+    create: (...args: Parameters<typeof resonate.schedules.create>) =>
+      sdkEffect("schedules.create", true, () => resonate.schedules.create(...args)),
+    delete: (...args: Parameters<typeof resonate.schedules.delete>) =>
+      sdkEffect("schedules.delete", true, () => resonate.schedules.delete(...args))
+  } satisfies SchedulesService
+
+  const register = ((
+    nameOrFunc: string | AnyFunc,
+    funcOrOptions?: AnyFunc | RegisterOptions,
+    registerOptions?: RegisterOptions
+  ) => registerRaw(resonate, nameOrFunc, funcOrOptions, registerOptions)) as ResonateClientService["register"]
+  const run = ((id: string, func: Workflow.Any | AnyFunc | string, ...args: ReadonlyArray<unknown>) =>
+    typeof func === "object"
+      ? invokeTyped("run", resonate, id, func, args[0], args[1] as OptionsInput)
+      : invokeRaw("run", resonate, id, func, args)) as ResonateClientService["run"]
+  const rpc = ((id: string, func: Workflow.Any | AnyFunc | string, ...args: ReadonlyArray<unknown>) =>
+    typeof func === "object"
+      ? invokeTyped("rpc", resonate, id, func, args[0], args[1] as OptionsInput)
+      : invokeRaw("rpc", resonate, id, func, args)) as ResonateClientService["rpc"]
+  const getHandle = ((id: string, workflow?: Workflow.Any) =>
+    get(resonate, id, workflow)) as ResonateClientService["get"]
+
+  const service = {
+    register,
+    setDependency: (name: string, value: unknown) =>
       sdkSync("setDependency", false, () => resonate.setDependency(name, value)),
-    run: (request: InvocationRequest) => "workflow" in request
-      ? invokeTyped("run", resonate, request)
-      : invokeRaw("run", resonate, request),
-    rpc: (request: InvocationRequest) => "workflow" in request
-      ? invokeTyped("rpc", resonate, request)
-      : invokeRaw("rpc", resonate, request),
-    get: (request: GetRequest | TypedGetRequest<Workflow.Any>) => get(resonate, request),
-    schedule: (request: ScheduleRequest<AnyFunc | string>) => sdkEffect(
+    run,
+    rpc,
+    get: getHandle,
+    schedule: (name: string, cron: string, func: AnyFunc | string, ...args: ReadonlyArray<unknown>) => sdkEffect(
       "schedule",
       true,
-      () => typeof request.func === "string"
-        ? resonate.schedule(
-          request.name,
-          request.cron,
-          request.func,
-          ...withOptions(request.args, request.options)
-        )
-        : resonate.schedule(
-          request.name,
-          request.cron,
-          request.func,
-          ...withOptions(request.args, request.options)
-        )
+      () => resonate.schedule(name, cron, func as AnyFunc, ...args)
     ).pipe(Effect.map(scheduleHandle)),
     options: (request?: OptionsInput) => sdkSync("options", false, () => resonate.options(request)),
-    promises: {
-      get: ({ id }: PromiseGetRequest) => sdkEffect("promises.get", false, () => resonate.promises.get(id)),
-      create: ({ id, timeoutAt, options: createOptions }: PromiseCreateRequest) =>
-        sdkEffect("promises.create", true, () => resonate.promises.create(id, timeoutAt, createOptions)),
-      createWithTask: ({ id, timeoutAt, pid, ttl, options: createOptions }: PromiseCreateWithTaskRequest) =>
-        sdkEffect("promises.createWithTask", true, () =>
-          resonate.promises.createWithTask(id, timeoutAt, pid, ttl, createOptions)),
-      resolve: (request: RawPromiseSettleRequest | TypedPromiseSettleRequest<unknown, never>) =>
-        promiseSettle("resolve", request),
-      reject: (request: RawPromiseSettleRequest | TypedPromiseSettleRequest<unknown, never>) =>
-        promiseSettle("reject", request),
-      cancel: (request: RawPromiseSettleRequest | TypedPromiseSettleRequest<unknown, never>) =>
-        promiseSettle("cancel", request),
-      registerCallback: ({ awaited, awaiter }: PromiseRegisterCallbackRequest) =>
-        sdkEffect("promises.registerCallback", true, () =>
-          resonate.promises.registerCallback(awaited, awaiter)),
-      registerListener: ({ awaited, address }: PromiseRegisterListenerRequest) =>
-        sdkEffect("promises.registerListener", true, () =>
-          resonate.promises.registerListener(awaited, address))
-    },
-    schedules: {
-      get: ({ id }: ScheduleGetRequest) => sdkEffect("schedules.get", false, () => resonate.schedules.get(id)),
-      create: ({ id, cron, promiseId, promiseTimeout, options: scheduleOptions }: ScheduleCreateRequest) =>
-        sdkEffect("schedules.create", true, () =>
-          resonate.schedules.create(id, cron, promiseId, promiseTimeout, scheduleOptions)),
-      delete: ({ id }: ScheduleDeleteRequest) =>
-        sdkEffect("schedules.delete", true, () => resonate.schedules.delete(id))
-    },
+    promises,
+    schedules,
     stop: () => shutdown
-  } as ResonateClientService
+  } satisfies ResonateClientService
+
+  return service
 })

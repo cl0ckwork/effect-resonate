@@ -36,7 +36,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Uppercase, Echo) {}
+    const Functions = ResonateFunctions.make(Uppercase, Echo)
 
     const dependencies = Layer.mergeAll(
       localNetworkLayer(() => new LocalNetwork()),
@@ -49,11 +49,7 @@ describe("ResonateClient", () => {
     }).pipe(Layer.provide(dependencies))
 
     const output = await runWith(Effect.gen(function*() {
-      const handle = yield* ResonateClient.run({
-        workflow: Echo,
-        id: "echo-1",
-        input: "hello"
-      })
+      const handle = yield* ResonateClient.run("echo-1", Echo, "hello")
       return yield* handle.result()
     }), ClientLive)
 
@@ -66,36 +62,28 @@ describe("ResonateClient", () => {
     }).pipe(Layer.provide(localNetworkLayer(() => new LocalNetwork())))
     const Uppercase = async (context: SdkContext, input: string): Promise<string> =>
       `${context.getDependency("prefix") as string}${input.toUpperCase()}`
+    const AnonymousUppercase = async (context: SdkContext, input: string): Promise<string> =>
+      `${context.getDependency("prefix") as string}${input.toUpperCase()}`
 
     const output = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      yield* client.setDependency({ name: "prefix", value: "raw:" })
-      const registered = yield* client.register({
-        name: "raw.uppercase",
-        func: Uppercase,
-        options: { version: 1 }
-      })
+      yield* client.setDependency("prefix", "raw:")
+      const registered = yield* client.register("raw.uppercase", Uppercase, { version: 1 })
+      const anonymous = yield* client.register(AnonymousUppercase, { version: 1 })
       const options = yield* registered.options({ version: 1 })
-      const helperHandle = yield* registered.run({
-        id: "raw-helper-1",
-        args: ["helper"]
-      })
-      const rawHandle = yield* client.run({
-        id: "raw-run-1",
-        func: "raw.uppercase",
-        args: ["client"],
-        options
-      })
-      const rpcHandle = yield* client.rpc({
-        id: "raw-rpc-1",
-        func: "raw.uppercase",
-        args: ["remote"],
-        options
-      })
-      const attached = yield* client.get<string>({ id: rawHandle.id })
+      const helperHandle = yield* registered.run("raw-helper-1", "helper")
+      const helperRpcHandle = yield* registered.rpc("raw-helper-rpc-1", "helper-rpc")
+      const anonymousHandle = yield* anonymous.run("raw-anonymous-1", "anonymous")
+      const rawHandle = yield* client.run("raw-run-1", "raw.uppercase", "client", options)
+      const rpcHandle = yield* client.rpc("raw-rpc-1", "raw.uppercase", "remote", options)
+      const schedule = yield* client.schedule("raw-hourly", "0 * * * *", "raw.uppercase", "scheduled", options)
+      yield* schedule.delete()
+      const attached = yield* client.get<string>(rawHandle.id)
 
       return {
         helper: yield* helperHandle.result(),
+        helperRpc: yield* helperRpcHandle.result(),
+        anonymous: yield* anonymousHandle.result(),
         raw: yield* attached.result(),
         done: yield* rawHandle.done(),
         rpcId: rpcHandle.id,
@@ -106,6 +94,8 @@ describe("ResonateClient", () => {
 
     assert.deepStrictEqual(output, {
       helper: "raw:HELPER",
+      helperRpc: "raw:HELPER-RPC",
+      anonymous: "raw:ANONYMOUS",
       raw: "raw:CLIENT",
       done: true,
       rpcId: "raw-rpc-1",
@@ -122,7 +112,7 @@ describe("ResonateClient", () => {
       success: Schema.Never,
       failure: Schema.Struct({ reason: Schema.String })
     })
-    class Functions extends ResonateFunctions.make(Decline) {}
+    const Functions = ResonateFunctions.make(Decline)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -132,11 +122,7 @@ describe("ResonateClient", () => {
     )))
 
     const failure = await runWith(Effect.gen(function*() {
-      const handle = yield* ResonateClient.run({
-        workflow: Decline,
-        id: "decline-1",
-        input: null
-      })
+      const handle = yield* ResonateClient.run("decline-1", Decline, null)
       return yield* Effect.flip(handle.result())
     }), ClientLive)
 
@@ -151,7 +137,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Echo) {}
+    const Functions = ResonateFunctions.make(Echo)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -161,8 +147,8 @@ describe("ResonateClient", () => {
     )))
 
     const outputs = await runWith(Effect.gen(function*() {
-      const first = yield* ResonateClient.run({ workflow: Echo, id: "first-writer-1", input: "first" })
-      const second = yield* ResonateClient.run({ workflow: Echo, id: "first-writer-1", input: "second" })
+      const first = yield* ResonateClient.run("first-writer-1", Echo, "first")
+      const second = yield* ResonateClient.run("first-writer-1", Echo, "second")
       return [yield* first.result(), yield* second.result()] as const
     }), ClientLive)
 
@@ -183,7 +169,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(V1, V2) {}
+    const Functions = ResonateFunctions.make(V1, V2)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -194,15 +180,68 @@ describe("ResonateClient", () => {
     )))
 
     const failure = await runWith(Effect.gen(function*() {
-      const started = yield* ResonateClient.run({ workflow: V1, id: "versioned-1", input: null })
+      const started = yield* ResonateClient.run("versioned-1", V1, null)
       yield* started.result()
-      const attached = yield* ResonateClient.get({ workflow: V2, id: "versioned-1" })
+      const attached = yield* ResonateClient.get("versioned-1", V2)
       return yield* Effect.flip(attached.result())
     }), ClientLive)
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/DefinitionConflict",
       executionId: "versioned-1",
+      expectedName: V2.name,
+      expectedVersion: V2.version,
+      actualName: V1.name,
+      actualVersion: V1.version
+    })
+  })
+
+  it("validates rejected execution identity before exposing the rejection", async () => {
+    const V1 = Workflow.make({
+      name: "client.rejected-versioned",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Never,
+      failure: Schema.Never
+    })
+    const V2 = Workflow.evolve(V1, {
+      version: 2,
+      input: Schema.Null,
+      success: Schema.Never,
+      failure: Schema.Never
+    })
+    const Functions = ResonateFunctions.make(V1, V2)
+    const ClientLive = ResonateClient.layer({
+      functions: Functions,
+      drainTimeout: Duration.seconds(1)
+    }).pipe(Layer.provide(Layer.mergeAll(
+      localNetworkLayer(() => new LocalNetwork()),
+      V1.toLayer(async () => {
+        throw new TypeError("boom")
+      }),
+      V2.toLayer(async () => {
+        throw new TypeError("boom")
+      })
+    )))
+
+    const [rejected, conflict] = await runWith(Effect.gen(function*() {
+      const started = yield* ResonateClient.run("rejected-versioned-1", V1, null)
+      const rejected = yield* Effect.flip(started.result())
+      const attached = yield* ResonateClient.get("rejected-versioned-1", V2)
+      const conflict = yield* Effect.flip(attached.result())
+      return [rejected, conflict] as const
+    }), ClientLive)
+
+    assert.deepInclude(rejected, {
+      _tag: "@effect-resonate/core/ExecutionRejected",
+      executionId: "rejected-versioned-1",
+      definitionName: V1.name,
+      definitionVersion: V1.version,
+      reason: "Defect"
+    })
+    assert.deepInclude(conflict, {
+      _tag: "@effect-resonate/core/DefinitionConflict",
+      executionId: "rejected-versioned-1",
       expectedName: V2.name,
       expectedVersion: V2.version,
       actualName: V1.name,
@@ -218,7 +257,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Missing) {}
+    const Functions = ResonateFunctions.make(Missing)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -228,10 +267,7 @@ describe("ResonateClient", () => {
     )))
 
     const failure = await runWith(
-      Effect.flip(ResonateClient.get({
-        workflow: Missing,
-        id: "not-found"
-      })),
+      Effect.flip(ResonateClient.get("not-found", Missing)),
       ClientLive
     )
 
@@ -251,7 +287,7 @@ describe("ResonateClient", () => {
       success: Schema.Boolean,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Approval) {}
+    const Functions = ResonateFunctions.make(Approval)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -263,33 +299,32 @@ describe("ResonateClient", () => {
       })
     )))
 
-    const [output, invalidCancellation] = await runWith(Effect.gen(function*() {
+    const [output, invalidCancellation, missingValue] = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const handle = yield* client.run({
-        workflow: Approval,
-        id: "approval-1",
-        input: null
-      })
+      const handle = yield* client.run("approval-1", Approval, null)
       const running = yield* handle.result().pipe(Effect.forkChild)
-      yield* client.promises.resolve({
-        id: "approval-1:0",
-        schema: ApprovalValue,
-        value: { approved: true }
-      }).pipe(Effect.retry({
+      yield* client.promises.resolve("approval-1:0", ApprovalValue, { approved: true }).pipe(Effect.retry({
         schedule: Schedule.spaced(Duration.millis(1)),
         times: 50
       }))
       const result = yield* Fiber.join(running)
-      const invalid = yield* Effect.flip(client.promises.cancel({
-        id: "approval-1:0",
-        schema: Schema.Struct({ nonDurable: Schema.Undefined }),
-        value: { nonDurable: undefined }
-      }))
-      return [result, invalid] as const
+      const invalid = yield* Effect.flip(client.promises.cancel(
+        "approval-1:0",
+        Schema.Struct({ nonDurable: Schema.Undefined }),
+        { nonDurable: undefined }
+      ))
+      const malformedResolve = client.promises.resolve as (...args: ReadonlyArray<unknown>) =>
+        Effect.Effect<unknown, unknown>
+      const missing = yield* Effect.flip(malformedResolve("approval-1:0", Schema.String))
+      return [result, invalid, missing] as const
     }), ClientLive)
 
     assert.isTrue(output)
     assert.deepInclude(invalidCancellation, {
+      _tag: "@effect-resonate/core/DurableProtocolError",
+      issue: "PayloadEncodeFailed"
+    })
+    assert.deepInclude(missingValue, {
       _tag: "@effect-resonate/core/DurableProtocolError",
       issue: "PayloadEncodeFailed"
     })
@@ -303,7 +338,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Settlement) {}
+    const Functions = ResonateFunctions.make(Settlement)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -325,29 +360,21 @@ describe("ResonateClient", () => {
 
     const outputs = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const rejectedHandle = yield* client.run({
-        workflow: Settlement,
-        id: "settle-reject",
-        input: "reject"
-      })
+      const rejectedHandle = yield* client.run("settle-reject", Settlement, "reject")
       const rejected = yield* rejectedHandle.result().pipe(Effect.forkChild)
-      yield* client.promises.reject({
-        id: "settle-reject:0",
-        schema: Schema.Struct({ reason: Schema.String }),
-        value: { reason: "declined" }
-      }).pipe(Effect.retry(settlementRetry))
+      yield* client.promises.reject(
+        "settle-reject:0",
+        Schema.Struct({ reason: Schema.String }),
+        { reason: "declined" }
+      ).pipe(Effect.retry(settlementRetry))
 
-      const canceledHandle = yield* client.run({
-        workflow: Settlement,
-        id: "settle-cancel",
-        input: "cancel"
-      })
+      const canceledHandle = yield* client.run("settle-cancel", Settlement, "cancel")
       const canceled = yield* canceledHandle.result().pipe(Effect.forkChild)
-      yield* client.promises.cancel({
-        id: "settle-cancel:0",
-        schema: Schema.Struct({ reason: Schema.String }),
-        value: { reason: "withdrawn" }
-      }).pipe(Effect.retry(settlementRetry))
+      yield* client.promises.cancel(
+        "settle-cancel:0",
+        Schema.Struct({ reason: Schema.String }),
+        { reason: "withdrawn" }
+      ).pipe(Effect.retry(settlementRetry))
 
       return [yield* Fiber.join(rejected), yield* Fiber.join(canceled)] as const
     }), ClientLive)
@@ -362,24 +389,47 @@ describe("ResonateClient", () => {
 
     const records = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const created = yield* client.promises.create({
-        id: "raw-promise-1",
-        timeoutAt: Date.now() + 60_000,
-        options: {
+      const created = yield* client.promises.create(
+        "raw-promise-1",
+        Date.now() + 60_000,
+        {
           headers: { source: "integration" },
           data: "before",
           tags: { kind: "raw" }
         }
-      })
-      const loaded = yield* client.promises.get({ id: created.id })
-      const resolved = yield* client.promises.resolve({
-        id: created.id,
-        options: {
+      )
+      const loaded = yield* client.promises.get(created.id)
+      const resolved = yield* client.promises.resolve(
+        created.id,
+        {
           headers: { source: "integration" },
           data: "after"
         }
-      })
-      return { created, loaded, resolved }
+      )
+      const rejectedPromise = yield* client.promises.create("raw-reject-1", Date.now() + 60_000)
+      const rejected = yield* client.promises.reject(rejectedPromise.id, { data: "declined" })
+      const canceledPromise = yield* client.promises.create("raw-cancel-1", Date.now() + 60_000)
+      const canceled = yield* client.promises.cancel(canceledPromise.id, { data: "withdrawn" })
+      const withTask = yield* client.promises.createWithTask(
+        "raw-task-1",
+        Date.now() + 60_000,
+        "worker-1",
+        30_000,
+        { tags: { "resonate:target": "poll://any@integration" } }
+      )
+      const awaited = yield* client.promises.create(
+        "raw-awaited-1",
+        Date.now() + 60_000,
+        { tags: { "resonate:external": "true" } }
+      )
+      const awaiter = yield* client.promises.create(
+        "raw-awaiter-1",
+        Date.now() + 60_000,
+        { tags: { "resonate:target": "poll://any@integration" } }
+      )
+      const callback = yield* client.promises.registerCallback(awaited.id, awaiter.id)
+      const listener = yield* client.promises.registerListener(awaited.id, "local://integration-listener")
+      return { created, loaded, resolved, rejected, canceled, withTask, callback, listener }
     }), ClientLive)
 
     assert.strictEqual(records.created.state, "pending")
@@ -395,6 +445,27 @@ describe("ResonateClient", () => {
         data: "after"
       }
     })
+    assert.deepInclude(records.rejected, {
+      id: "raw-reject-1",
+      state: "rejected",
+      value: { headers: {}, data: "declined" }
+    })
+    assert.deepInclude(records.canceled, {
+      id: "raw-cancel-1",
+      state: "rejected_canceled",
+      value: { headers: {}, data: "withdrawn" }
+    })
+    assert.deepInclude(records.withTask.promise, {
+      id: "raw-task-1",
+      state: "pending"
+    })
+    assert.deepInclude(records.withTask.task, {
+      id: "raw-task-1",
+      state: "acquired",
+      pid: "worker-1"
+    })
+    assert.strictEqual(records.callback.promise.id, "raw-awaited-1")
+    assert.strictEqual(records.listener.promise.id, "raw-awaited-1")
   })
 
   it("mirrors the raw schedules namespace", async () => {
@@ -405,12 +476,12 @@ describe("ResonateClient", () => {
     const output = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
       const options = yield* client.options()
-      const created = yield* client.schedules.create({
-        id: "raw-schedule-1",
-        cron: "0 0 * * *",
-        promiseId: "scheduled-promise-{{.timestamp}}",
-        promiseTimeout: 60_000,
-        options: {
+      const created = yield* client.schedules.create(
+        "raw-schedule-1",
+        "0 0 * * *",
+        "scheduled-promise-{{.timestamp}}",
+        60_000,
+        {
           promiseHeaders: { source: "integration" },
           promiseData: "scheduled",
           promiseTags: {
@@ -418,9 +489,9 @@ describe("ResonateClient", () => {
             "resonate:target": options.target
           }
         }
-      })
-      const loaded = yield* client.schedules.get({ id: created.id })
-      const deleted = yield* client.schedules.delete({ id: created.id })
+      )
+      const loaded = yield* client.schedules.get(created.id)
+      const deleted = yield* client.schedules.delete(created.id)
       return { created, loaded, deleted }
     }), ClientLive)
 
@@ -437,7 +508,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Ping) {}
+    const Functions = ResonateFunctions.make(Ping)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -447,11 +518,7 @@ describe("ResonateClient", () => {
     )))
 
     const failure = await runWith(Effect.flip(
-      ResonateClient.promises.resolve({
-        id: "does-not-need-to-exist",
-        schema: Schema.String,
-        value: 42 as unknown as string
-      })
+      ResonateClient.promises.resolve("does-not-need-to-exist", Schema.String, 42 as unknown as string)
     ), ClientLive)
 
     assert.deepInclude(failure, {
@@ -468,7 +535,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(First) {}
+    const Functions = ResonateFunctions.make(First)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -483,28 +550,14 @@ describe("ResonateClient", () => {
 
     const output = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const handle = yield* client.run({
-        workflow: First,
-        id: "first-settlement",
-        input: null
-      })
+      const handle = yield* client.run("first-settlement", First, null)
       const running = yield* handle.result().pipe(Effect.forkChild)
-      yield* client.promises.resolve({
-        id: "first-settlement:0",
-        schema: Schema.String,
-        value: "first"
-      }).pipe(Effect.retry(settlementRetry))
-      yield* client.promises.resolve({
-        id: "first-settlement:0",
-        schema: Schema.String,
-        value: "second"
-      })
+      yield* client.promises.resolve("first-settlement:0", Schema.String, "first").pipe(
+        Effect.retry(settlementRetry)
+      )
+      yield* client.promises.resolve("first-settlement:0", Schema.String, "second")
       const result = yield* Fiber.join(running)
-      yield* client.promises.reject({
-        id: "first-settlement:0",
-        schema: Schema.String,
-        value: "late"
-      })
+      yield* client.promises.reject("first-settlement:0", Schema.String, "late")
       return result
     }), ClientLive)
 
@@ -519,7 +572,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Timeout) {}
+    const Functions = ResonateFunctions.make(Timeout)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -530,21 +583,12 @@ describe("ResonateClient", () => {
 
     const failure = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const handle = yield* client.run({
-        workflow: Timeout,
-        id: "timeout-settlement-race",
-        input: null,
-        options: { timeout: 20 }
-      })
+      const handle = yield* client.run("timeout-settlement-race", Timeout, null, { timeout: 20 })
       const running = yield* Effect.flip(handle.result()).pipe(Effect.forkChild)
 
       // LocalNetwork advances durable time on a one-second tick.
       yield* Effect.sleep(Duration.millis(1_100))
-      yield* client.promises.resolve({
-        id: "timeout-settlement-race:0",
-        schema: Schema.String,
-        value: "too-late"
-      })
+      yield* client.promises.resolve("timeout-settlement-race:0", Schema.String, "too-late")
       return yield* Fiber.join(running)
     }), ClientLive)
 
@@ -567,7 +611,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Wait) {}
+    const Functions = ResonateFunctions.make(Wait)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -582,23 +626,15 @@ describe("ResonateClient", () => {
 
     const output = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const handle = yield* client.run({
-        workflow: Wait,
-        id: "interrupted-waiter",
-        input: null
-      })
+      const handle = yield* client.run("interrupted-waiter", Wait, null)
       const localWaiter = yield* handle.result().pipe(Effect.forkChild)
       yield* Effect.promise(() => waiting)
       yield* Fiber.interrupt(localWaiter)
-      yield* client.promises.resolve({
-        id: "interrupted-waiter:0",
-        schema: Schema.String,
-        value: "still-running"
-      }).pipe(Effect.retry({
+      yield* client.promises.resolve("interrupted-waiter:0", Schema.String, "still-running").pipe(Effect.retry({
         schedule: Schedule.spaced(Duration.millis(1)),
         times: 50
       }))
-      const attached = yield* client.get({ workflow: Wait, id: "interrupted-waiter" })
+      const attached = yield* client.get("interrupted-waiter", Wait)
       return yield* attached.result()
     }), ClientLive)
 
@@ -625,7 +661,7 @@ describe("ResonateClient", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Echo) {}
+    const Functions = ResonateFunctions.make(Echo)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -636,13 +672,9 @@ describe("ResonateClient", () => {
 
     const [failure, recovered] = await runWith(Effect.gen(function*() {
       const client = yield* ResonateClient.ResonateClient
-      const handle = yield* client.run({
-        workflow: Echo,
-        id: "response-loss",
-        input: "committed"
-      })
+      const handle = yield* client.run("response-loss", Echo, "committed")
       const failed = yield* Effect.flip(handle.result())
-      const attached = yield* client.get({ workflow: Echo, id: "response-loss" })
+      const attached = yield* client.get("response-loss", Echo)
       return [failed, yield* attached.result()] as const
     }), ClientLive)
 
@@ -663,7 +695,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Invalid) {}
+    const Functions = ResonateFunctions.make(Invalid)
     let constructions = 0
     const ClientLive = ResonateClient.layer({
       functions: Functions,
@@ -692,7 +724,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Ping) {}
+    const Functions = ResonateFunctions.make(Ping)
     let constructions = 0
     const ClientLive = ResonateClient.layer({
       functions: Functions,
@@ -727,7 +759,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Ping) {}
+    const Functions = ResonateFunctions.make(Ping)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -764,7 +796,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Ping) {}
+    const Functions = ResonateFunctions.make(Ping)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -804,7 +836,7 @@ describe("ResonateClient", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Ping) {}
+    const Functions = ResonateFunctions.make(Ping)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.seconds(1)
@@ -815,17 +847,76 @@ describe("ResonateClient", () => {
 
     const runtime = ManagedRuntime.make(ClientLive)
     const client = await runtime.runPromise(ResonateClient.ResonateClient)
-    const handle = await runtime.runPromise(client.run({
-      workflow: Ping,
-      id: "lifecycle-1",
-      input: null
-    }))
+    const handle = await runtime.runPromise(client.run("lifecycle-1", Ping, null))
     await runtime.runPromise(handle.result())
     await runtime.runPromise(client.stop())
     await runtime.runPromise(client.stop())
     await runtime.dispose()
 
     assert.strictEqual(initializations, 1)
+    assert.strictEqual(stops, 1)
+  })
+
+  it("continues shared shutdown when one explicit stop waiter is interrupted", async () => {
+    let stops = 0
+    let notifyStarted!: () => void
+    let unblock!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    const blocked = new Promise<null>((resolve) => {
+      unblock = () => resolve(null)
+    })
+    class ObservedNetwork extends LocalNetwork {
+      override stop(): Promise<void> {
+        stops += 1
+        return super.stop()
+      }
+    }
+    const Blocked = Step.make({
+      name: "client.interrupted-stop-step",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const Wait = Workflow.make({
+      name: "client.interrupted-stop-workflow",
+      version: 1,
+      input: Schema.Null,
+      success: Schema.Null,
+      failure: Schema.Never
+    })
+    const Functions = ResonateFunctions.make(Blocked, Wait)
+    const ClientLive = ResonateClient.layer({
+      functions: Functions,
+      drainTimeout: Duration.seconds(1)
+    }).pipe(Layer.provide(Layer.mergeAll(
+      localNetworkLayer(() => new ObservedNetwork()),
+      Blocked.toLayer(() => Effect.sync(notifyStarted).pipe(
+        Effect.andThen(Effect.promise(() => blocked))
+      )),
+      Wait.toLayer(async (context) => context.run(Blocked, null))
+    )))
+    const runtime = ManagedRuntime.make(ClientLive)
+    const client = await runtime.runPromise(ResonateClient.ResonateClient)
+    const running = runtime.runPromise(Effect.gen(function*() {
+      const handle = yield* client.run("interrupted-stop-1", Wait, null)
+      return yield* handle.result()
+    })).catch(() => undefined)
+    void running
+
+    await started
+    await runtime.runPromise(Effect.gen(function*() {
+      const interruptedWaiter = yield* client.stop().pipe(Effect.forkChild)
+      yield* Effect.sleep(Duration.millis(10))
+      const completingWaiter = yield* client.stop().pipe(Effect.forkChild)
+      yield* Fiber.interrupt(interruptedWaiter)
+      yield* Effect.sync(unblock)
+      yield* Fiber.join(completingWaiter)
+    }))
+    await runtime.dispose()
+
     assert.strictEqual(stops, 1)
   })
 
@@ -855,7 +946,7 @@ describe("ResonateClient", () => {
       success: Schema.Never,
       failure: Schema.Never
     })
-    class Functions extends ResonateFunctions.make(Blocked, Wait) {}
+    const Functions = ResonateFunctions.make(Blocked, Wait)
     const ClientLive = ResonateClient.layer({
       functions: Functions,
       drainTimeout: Duration.zero
@@ -871,11 +962,7 @@ describe("ResonateClient", () => {
     const runtime = ManagedRuntime.make(ClientLive)
     const client = await runtime.runPromise(ResonateClient.ResonateClient)
     const running = runtime.runPromise(Effect.gen(function*() {
-      const handle = yield* client.run({
-        workflow: Wait,
-        id: "blocked-1",
-        input: null
-      })
+      const handle = yield* client.run("blocked-1", Wait, null)
       return yield* handle.result()
     })).catch(() => undefined)
 

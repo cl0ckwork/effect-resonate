@@ -78,7 +78,10 @@ dependencies and installs them for development. Consumers select and install
 the provider explicitly. Installing or importing core never loads or resolves
 Postgres code or `pg`.
 
-The initial `zshy` export map only exposes the root entrypoint. Add stable subpath exports such as `./Workflow` and `./Step` as those modules become real public APIs rather than publishing placeholder entrypoints.
+The current `zshy` export map exposes the root entrypoint and the stable core
+module entrypoints, including `./Workflow`, `./Step`, and `./ResonateClient`.
+Keep packed-consumer typechecks covering both root and subpath imports whenever
+the public export map changes.
 
 ## TypeScript
 
@@ -92,6 +95,7 @@ When the API is ready for its first npm release:
 2. validate packed output with `publint` and `@arethetypeswrong/cli`;
 3. publish from GitHub Actions using npm trusted publishing / OIDC rather than a long-lived `NPM_TOKEN`;
 4. enable npm provenance;
-5. add at least one workspace/fixture consumer that tests the packed artifact rather than importing source directly.
+5. keep the packed-artifact consumer typecheck in the release gate rather than
+   relying only on source-level workspace imports.
 
 Avoid adding release automation before there is a package worth releasing.

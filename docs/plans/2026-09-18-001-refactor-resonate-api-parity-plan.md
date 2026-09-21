@@ -1,5 +1,8 @@
 # Resonate API parity refactor plan
 
+> Superseded where syntax differs by
+> [`2026-09-20-001-refactor-thin-wrapper-plan.md`](./2026-09-20-001-refactor-thin-wrapper-plan.md).
+
 Source: `docs/specs/2026-09-18-001-resonate-api-parity-spec.md`
 
 ## Summary
@@ -83,10 +86,10 @@ Partial activation failure retains `requestMayHaveCommitted`; recovery uses
 7. **Named request objects remain.** This is the one systematic syntax
    difference from upstream positional calls and follows the established public
    API rule.
-8. **Network configuration has one owner.** Connection selection and credentials
-   remain inputs to the `ResonateNetwork` Layer. The client Layer accepts only
-   constructor fields that the upstream SDK still applies when `network` is
-   supplied.
+8. **Only the network instance is Layer-owned.** The client Layer accepts and
+   forwards every other upstream constructor option without wrapper policy.
+   Resonate's own precedence determines which fields apply when the Layer-owned
+   network is supplied.
 9. **One narrow SDK compatibility correction.** Bind the installed SDK 0.11.5
    `ResonateFunc.options` helper to the owning client; preserve its public input
    and output types and remove this exception when upstream no longer needs it.

@@ -218,11 +218,7 @@ export const make = (context: ResonateContext): WorkflowContext => {
     options: (options?: Parameters<ResonateContext["options"]>[0]) => context.options(options),
     panic: (condition: boolean, message?: string) => context.panic(condition, message),
     assert: (condition: boolean, message?: string) => context.assert(condition, message),
-    date: Object.freeze({
-      now: () => context.date.now()
-    }),
-    math: Object.freeze({
-      random: () => context.math.random()
-    })
+    date: context.date,
+    math: context.math
   })
 }

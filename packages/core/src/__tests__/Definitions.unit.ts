@@ -154,11 +154,13 @@ describe("ResonateFunctions.make", () => {
 
     assert.deepStrictEqual(functions.functions, [Reserve, Checkout])
     assert.deepStrictEqual(functions.functions.map((fn) => fn.kind), ["Step", "Workflow"])
+    assert.strictEqual(typeof functions, "object")
+    assert.isTrue(Object.isFrozen(functions))
     assert.isTrue(Object.isFrozen(functions.functions))
   })
 
-  it("supports RpcGroup-style class declarations and immutable composition", () => {
-    class CheckoutFunctions extends ResonateFunctions.make(Reserve, Checkout) {}
+  it("supports plain immutable composition", () => {
+    const CheckoutFunctions = ResonateFunctions.make(Reserve, Checkout)
 
     const extended = CheckoutFunctions.add(Reserve)
     const merged = ResonateFunctions.make(Reserve).merge(ResonateFunctions.make(Checkout))

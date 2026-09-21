@@ -99,7 +99,7 @@ a valid identity-bearing envelope; and release creates no new durable outcome.
 ```text
 Effect caller
   -> Workflow input decode + encode
-  -> ResonateClient.run({ id, workflow: exact version, input })  [activation may commit]
+  -> ResonateClient.run(id, workflow: exact version, input)  [activation may commit]
   -> gated SDK Network -> selected provider
   -> workflow adapter: tuple check -> schema decode -> async workflow body
        -> WorkflowContext.run/rpc(exact Step version)
@@ -223,9 +223,9 @@ that tracked and parked per-delivery counts are zero after release.
 
 Use an Effect service/Layer rather than a singleton or nested application
 runtime so application services are shared and scoped. Use the SDK Network contract rather
-than implementing provider messages. Use a wrapper logger that emits only
-allowlisted metadata and sanitized messages because upstream network errors can
-contain connection details.
+than implementing provider messages. Pass SDK logger configuration through
+unchanged: provider packages sanitize credentials in errors they produce, and
+applications own logger and sink policy.
 
 ### Providers compose outside core
 
@@ -578,9 +578,10 @@ provider branch to core merely to make the stack executable.
   and runtime pin, lease one database per test, give cron jobs run-scoped names,
   unschedule before releasing the lease, close every connection, and never query
   private tables from production code.
-- **Error diagnostics can leak secrets through upstream messages.** Allowlist
-  public fields, redact logging at the injected SDK logger, and retain sentinel
-  acceptance tests across every boundary.
+- **Error diagnostics can leak secrets through upstream messages.** Keep
+  provider credentials out of provider-owned errors, document that core passes
+  SDK logging through unchanged, and let applications apply their own logger
+  and sink policy.
 
 ## Open questions
 

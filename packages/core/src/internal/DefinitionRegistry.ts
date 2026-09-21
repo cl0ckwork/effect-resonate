@@ -23,10 +23,34 @@ const invalid = (
   issue
 })
 
-const validateLineage = (definition: Definition): InvalidDefinition | undefined => {
+const validateIdentity = (definition: Definition): InvalidDefinition | undefined => {
+  if (definition.name.trim().length === 0) {
+    return invalid(definition, "EmptyName")
+  }
+  if (!Number.isInteger(definition.version) || definition.version <= 0) {
+    return invalid(definition, "VersionNotPositiveInteger")
+  }
+  return undefined
+}
+
+const validateLineage = (
+  definition: Definition,
+  visited: ReadonlySet<Definition> = new Set()
+): InvalidDefinition | undefined => {
+  if (visited.has(definition)) {
+    return invalid(definition, "InvalidEvolutionLineage")
+  }
   const previous = definition.previous
   if (previous === undefined) {
     return undefined
+  }
+  const lineage = new Set([...visited, definition])
+  if (lineage.has(previous)) {
+    return invalid(definition, "InvalidEvolutionLineage")
+  }
+  const identityIssue = validateIdentity(previous)
+  if (identityIssue !== undefined) {
+    return identityIssue
   }
   if (previous.kind !== definition.kind || previous.name !== definition.name) {
     return invalid(definition, "InvalidEvolutionLineage")
@@ -34,15 +58,13 @@ const validateLineage = (definition: Definition): InvalidDefinition | undefined 
   if (definition.version <= previous.version) {
     return invalid(definition, "VersionNotIncreasing")
   }
-  return validateLineage(previous)
+  return validateLineage(previous, lineage)
 }
 
 const validateDefinition = (definition: Definition): InvalidDefinition | undefined => {
-  if (definition.name.trim().length === 0) {
-    return invalid(definition, "EmptyName")
-  }
-  if (!Number.isInteger(definition.version) || definition.version <= 0) {
-    return invalid(definition, "VersionNotPositiveInteger")
+  const identityIssue = validateIdentity(definition)
+  if (identityIssue !== undefined) {
+    return identityIssue
   }
   return validateLineage(definition)
 }

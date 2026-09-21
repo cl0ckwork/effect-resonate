@@ -22,7 +22,9 @@ The intended split is:
 - Effect owns application effects, typed errors, dependency injection, resources, tracing, and integrations.
 - Workflow and step definitions are inert, schema-first durable contracts.
 - `toLayer` supplies implementations while preserving ordinary Effect service requirements.
-- Service-free codecs validate and transform every value crossing Resonate persistence.
+- Service-free codecs validate and transform wrapper-owned values at typed
+  workflow, step, and external-promise boundaries. Raw SDK values and original
+  thrown errors remain upstream-owned.
 
 ## Contract evolution
 
@@ -64,11 +66,11 @@ the provider network remain ordinary Layer dependencies rather than values
 inside client configuration.
 
 ```ts
-class CheckoutFunctions extends ResonateFunctions.make(
+const CheckoutFunctions = ResonateFunctions.make(
   ChargeCardV1,
   ChargeCardV2,
   Checkout
-) {}
+)
 
 const ResonateLive = ResonateClient.layer({
   functions: CheckoutFunctions,
@@ -85,10 +87,11 @@ const ResonateLive = ResonateClient.layer({
 
 `ResonateClient.layer` validates the complete registry before opening the
 network, waits for exact-version registration, and owns graceful shutdown.
-Connection selection and credentials belong to the supplied `ResonateNetwork`
-Layer. Client options include only upstream constructor fields that still apply
-to an injected network (`pid`, `ttl`, logging, and encryption); accepting
-`url`, `group`, `token`, or transport `timeout` here would silently ignore them.
+`ResonateClient.layer` accepts and forwards every async SDK constructor option
+except `network`, which is supplied by the `ResonateNetwork` Layer. Resonate's
+own precedence rules still apply: because the Layer provides a network, its
+transport owns connection behavior even when `url`, `group`, `token`, or
+transport `timeout` are also present in the forwarded client options.
 
 Application code uses module-level accessors. They retrieve the real
 `ResonateClient` service from the Effect context and preserve its requirement in
@@ -96,26 +99,26 @@ the environment channel:
 
 ```ts
 const checkout = Effect.gen(function*() {
-  const handle = yield* ResonateClient.run({
-    workflow: Checkout,
-    id: "checkout-123",
-    input: { orderId: "order-123" }
-  })
+  const handle = yield* ResonateClient.run(
+    "checkout-123",
+    Checkout,
+    { orderId: "order-123" }
+  )
 
   return yield* handle.result()
 }).pipe(Effect.provide(ResonateLive))
 ```
 
-Raw SDK-style registration and invocation remain available under the same
-names. The only top-level syntax change is a named request object:
+Raw SDK-style registration and invocation remain available with the same names
+and positional argument order:
 
 ```ts
 const raw = Effect.gen(function*() {
-  const greet = yield* ResonateClient.register({
-    name: "greet",
-    func: async (_ctx, name: string) => `hello ${name}`
-  })
-  const handle = yield* greet.run({ id: "greet-1", args: ["Luke"] })
+  const greet = yield* ResonateClient.register(
+    "greet",
+    async (_ctx, name: string) => `hello ${name}`
+  )
+  const handle = yield* greet.run("greet-1", "Luke")
   return yield* handle.result()
 })
 ```

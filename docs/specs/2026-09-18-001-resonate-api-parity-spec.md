@@ -1,5 +1,9 @@
 # Resonate API parity with Effect ergonomics
 
+> Superseded where syntax differs by
+> [`2026-09-20-001-thin-wrapper-simplification-spec.md`](./2026-09-20-001-thin-wrapper-simplification-spec.md),
+> which restores upstream positional parameters and plain function-group values.
+
 ## Objective
 
 Make the installed `@resonatehq/sdk/async` API the primary public vocabulary and
@@ -60,12 +64,11 @@ context operations are eager.
 Named request objects are the sole systematic syntax difference, following the
 repository API rule. Request fields retain upstream names wherever possible.
 
-Connection selection remains an Effect dependency rather than duplicated
-client configuration. `url`, `group`, `token`, transport `timeout`, and the
-network instance belong to the selected `ResonateNetwork` Layer. Client Layer
-options expose only async-constructor fields that still apply after a network is
-injected: process identity, TTL, logging, and encryption. Accepting connection
-fields on the client would silently ignore them in the upstream constructor.
+The network instance remains an Effect dependency and is the sole constructor
+option core excludes. Every other async-constructor option is accepted and
+forwarded unchanged rather than curated by the wrapper. Resonate's upstream
+precedence remains authoritative: an injected network owns transport behavior,
+so connection fields may have no effect when that network is present.
 
 The wrapper deliberately corrects one installed SDK 0.11.5 binding defect:
 `ResonateFunc.options` is rebound to its owning client because the SDK returns
