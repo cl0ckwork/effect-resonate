@@ -34,10 +34,16 @@ export type Steps<Group> = Extract<Functions<Group>, Step.Any>
 /** Extracts the workflow union retained by a collection. */
 export type Workflows<Group> = Extract<Functions<Group>, Workflow.Any>
 
+type StepHandlers<Definition> = Definition extends Step.Any ? Step.Step.Implementation<Definition> : never
+
+type WorkflowHandlers<Definition> = Definition extends Workflow.Any
+  ? Workflow.Workflow.Implementation<Definition>
+  : never
+
 /** Computes the implementation services required by the collection. */
 export type Handlers<Group> =
-  | Step.Step.Implementation<Steps<Group>>
-  | Workflow.Workflow.Implementation<Workflows<Group>>
+  | StepHandlers<Steps<Group>>
+  | WorkflowHandlers<Workflows<Group>>
 
 const makeGroup = <Function extends AnyFunction>(
   functions: ReadonlyArray<Function>

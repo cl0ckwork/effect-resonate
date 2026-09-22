@@ -427,7 +427,7 @@ abandoned work.
 
 Files: `packages/testing/package.json`, `packages/testing/tsconfig.json`,
 `packages/testing/src/NetworkHarness.ts`,
-`packages/testing/src/NetworkConformance.ts`,
+`packages/testing/src/NetworkScenarios.ts`,
 `packages/testing/src/RecoveryScenarios.ts`, and focused self-tests using the
 deterministic core test network.
 

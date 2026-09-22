@@ -206,6 +206,31 @@ importers:
         specifier: ^0.7.2
         version: 0.7.3(typescript@5.9.2)
 
+  packages/testing:
+    dependencies:
+      '@effect-resonate/core':
+        specifier: workspace:*
+        version: link:../core
+      effect:
+        specifier: 4.0.0-rc.115
+        version: 4.0.0-rc.115
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.0-rc.115
+        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.1(vite@8.3.0))
+      '@resonatehq/sdk':
+        specifier: ^0.11.4
+        version: 0.11.5
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(vite@8.3.0)
+      zshy:
+        specifier: ^0.7.2
+        version: 0.7.3(typescript@5.9.2)
+
 packages:
 
   '@cacheable/memory@2.2.0':
