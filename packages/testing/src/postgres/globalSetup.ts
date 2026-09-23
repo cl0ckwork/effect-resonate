@@ -14,28 +14,36 @@ declare module "vitest" {
 }
 
 const composeFile = fileURLToPath(new URL("../../docker-compose.yml", import.meta.url))
-const fixture = (name: string) => fileURLToPath(new URL(`./docker/fixtures/${name}`, import.meta.url))
+const fixture = ({ name }: { readonly name: string }) =>
+  fileURLToPath(new URL(`./docker/fixtures/${name}`, import.meta.url))
 const Port = Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0))
 
-const compose = (projectName: string, ...args: string[]) => Effect.try(() => execFileSync(
-  "docker", ["compose", "-f", composeFile, "-p", projectName, ...args],
+const compose = (options: { readonly projectName: string; readonly command: ReadonlyArray<string> }) => Effect.try(() => execFileSync(
+  "docker", ["compose", "-f", composeFile, "-p", options.projectName, ...options.command],
   { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] }
 ))
 
-const port = (projectName: string, service: string, containerPort: number) => Effect.gen(function*() {
-  const address = yield* compose(projectName, "port", service, String(containerPort))
+const port = (options: {
+  readonly projectName: string
+  readonly service: string
+  readonly containerPort: number
+}) => Effect.gen(function*() {
+  const address = yield* compose({
+    projectName: options.projectName,
+    command: ["port", options.service, String(options.containerPort)]
+  })
   return yield* Schema.decodeUnknownEffect(Port)(/:(\d+)$/.exec(address.trim())?.[1])
 })
 
-const migrate = (connectionString: string) => Effect.scoped(Effect.gen(function*() {
+const migrate = ({ connectionString }: { readonly connectionString: string }) => Effect.scoped(Effect.gen(function*() {
   const client = yield* Effect.acquireRelease(
     Effect.sync(() => new Client({ connectionString })),
     (client) => Effect.promise(() => client.end())
   )
   yield* Effect.promise(() => client.connect())
-  const schema = yield* Effect.promise(() => readFile(fixture("resonate.sql"), "utf8"))
+  const schema = yield* Effect.promise(() => readFile(fixture({ name: "resonate.sql" }), "utf8"))
   yield* Effect.promise(() => client.query(schema))
-  const compatibility = yield* Effect.promise(() => readFile(fixture("001-sdk-global-promise.sql"), "utf8"))
+  const compatibility = yield* Effect.promise(() => readFile(fixture({ name: "001-sdk-global-promise.sql" }), "utf8"))
   yield* Effect.promise(() => client.query(compatibility))
   const check = yield* Effect.promise(() => client.query<{ version: string | null }>(
     "SELECT resonate.get_schema_version() AS version"
@@ -45,19 +53,19 @@ const migrate = (connectionString: string) => Effect.scoped(Effect.gen(function*
   }
 }))
 
-const setupEffect = (project: TestProject) => Effect.gen(function*() {
+const setupEffect = ({ project }: { readonly project: TestProject }) => Effect.gen(function*() {
   const projectName = `effect-resonate-test-${randomUUID().slice(0, 8)}`
-  const teardown = compose(projectName, "down", "-v", "--remove-orphans")
+  const teardown = compose({ projectName, command: ["down", "-v", "--remove-orphans"] })
   yield* Effect.gen(function*() {
-    yield* compose(projectName, "up", "-d", "--build", "--wait")
-    const postgresPort = yield* port(projectName, "postgres", 5432)
-    const integresqlPort = yield* port(projectName, "integresql", 5000)
-    const integresql = createIntegresqlClient(`http://127.0.0.1:${integresqlPort}/`)
-    const templateHash = yield* Effect.promise(() => hashMigrations(integresql))
+    yield* compose({ projectName, command: ["up", "-d", "--build", "--wait"] })
+    const postgresPort = yield* port({ projectName, service: "postgres", containerPort: 5432 })
+    const integresqlPort = yield* port({ projectName, service: "integresql", containerPort: 5000 })
+    const integresql = createIntegresqlClient({ url: `http://127.0.0.1:${integresqlPort}/` })
+    const templateHash = yield* Effect.promise(() => hashMigrations({ client: integresql }))
     yield* Effect.promise(() => integresql.initializeTemplate(
       templateHash,
       (database) => Effect.runPromise(
-        migrate(dbConfigToHostUrl(integresql, database, postgresPort))
+        migrate({ connectionString: dbConfigToHostUrl({ client: integresql, config: database, postgresPort }) })
       )
     ))
     yield* Effect.sync(() => project.provide("postgres", { postgresPort, integresqlPort, templateHash }))
@@ -66,4 +74,4 @@ const setupEffect = (project: TestProject) => Effect.gen(function*() {
   return () => Effect.runPromise(teardown)
 })
 
-export const setup = (project: TestProject) => Effect.runPromise(setupEffect(project))
+export const setup = (project: TestProject) => Effect.runPromise(setupEffect({ project }))

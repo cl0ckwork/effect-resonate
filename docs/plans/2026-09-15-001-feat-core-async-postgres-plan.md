@@ -477,7 +477,7 @@ and packs with no `Postgres`, `network-postgres`, or `pg` reference.
 ### U7 — IntegreSQL Postgres runtime evaluation suite
 
 Files: `packages/testing/src/postgres/layers.ts`,
-`packages/testing/src/__tests__/PostgresNetwork.integration.ts`,
+`packages/testing/src/postgres/__tests__/PostgresNetwork.integration.ts`,
 `packages/testing/src/postgres/docker/fixtures/resonate.sql`,
 `packages/testing/src/postgres/docker/fixtures/UPSTREAM.md`, container/CI configuration,
 and the testing package's Postgres-specific scripts and TypeScript configuration.
