@@ -1,8 +1,9 @@
-import { execFileSync } from "node:child_process"
+import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { Effect, Schema } from "effect"
+import { promisify } from "node:util"
+import { Effect, Schedule, Schema } from "effect"
 import { Client } from "pg"
 import type { TestProject } from "vitest/node"
 import { schemaVersion } from "./env.js"
@@ -12,11 +13,21 @@ const composeFile = fileURLToPath(new URL("../../docker-compose.yml", import.met
 const fixture = ({ name }: { readonly name: string }) =>
   fileURLToPath(new URL(`./docker/fixtures/${name}`, import.meta.url))
 const Port = Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0))
+const execFileAsync = promisify(execFile)
 
-const compose = (options: { readonly projectName: string; readonly command: ReadonlyArray<string> }) => Effect.try(() => execFileSync(
-  "docker", ["compose", "-f", composeFile, "-p", options.projectName, ...options.command],
-  { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] }
-))
+const compose = (options: { readonly projectName: string; readonly command: ReadonlyArray<string> }) =>
+  Effect.tryPromise((signal) => execFileAsync(
+    "docker", ["compose", "-f", composeFile, "-p", options.projectName, ...options.command],
+    { encoding: "utf8", signal, timeout: 10 * 60_000, maxBuffer: 8 * 1024 * 1024 }
+  ).then(({ stdout }) => stdout))
+
+const waitForIntegresql = ({ url }: { readonly url: string }) =>
+  Effect.tryPromise((signal) => fetch(new URL("api/v1/templates/__readiness__/tests", url), { signal }).then((response) => {
+    if (response.status >= 500) throw new Error(`IntegreSQL readiness returned ${response.status}`)
+  })).pipe(
+    Effect.timeout("2 seconds"),
+    Effect.retry({ times: 30, schedule: Schedule.spaced("500 millis") })
+  )
 
 const publishedPort = (options: {
   readonly projectName: string
@@ -59,7 +70,9 @@ const setupEffect = ({ project }: { readonly project: TestProject }) => Effect.g
     const postgresPort = yield* publishedPort({ projectName, service: "postgres", containerPort: 5432 })
     const integresqlPort = yield* publishedPort({ projectName, service: "integresql", containerPort: 5000 })
     const expectedSchemaVersion = yield* schemaVersion
-    const integresql = createIntegresqlClient({ url: `http://127.0.0.1:${integresqlPort}/` })
+    const integresqlUrl = `http://127.0.0.1:${integresqlPort}/`
+    yield* waitForIntegresql({ url: integresqlUrl })
+    const integresql = createIntegresqlClient({ url: integresqlUrl })
     const templateHash = yield* Effect.promise(() => hashMigrations({ client: integresql }))
     yield* Effect.promise(() => integresql.initializeTemplate(
       templateHash,
