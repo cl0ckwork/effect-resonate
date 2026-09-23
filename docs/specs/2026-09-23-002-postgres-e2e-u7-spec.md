@@ -6,7 +6,7 @@ Status: implemented on the U7 branch, stacked on U6.
 
 Run U5's eight reusable provider scenarios through `@effect-resonate/network-postgres` against an isolated, migrated PostgreSQL 16 database. Check real missing-schema and bad-credential acquisition failures as well. Keep Docker, IntegreSQL, and SQL fixtures under the private `@effect-resonate/testing` package. The production packages must not gain test infrastructure dependencies.
 
-Vitest global setup starts the services, prepares a hashed template, provides its ports and hash to the tests, and removes the services after the run. Each scenario leases a fresh database. Regular `pnpm test` includes these tests; `SKIP_POSTGRES_TESTS=1` omits them when Docker is unavailable. Wider U7 crash-window and version-deployment acceptance cases in the original program plan remain separate follow-up work.
+Vitest global setup starts the services, prepares a hashed template, provides its ports and hash to the tests, and removes the services after the run. Each scenario leases a fresh database. Regular `pnpm test` includes these tests; `SKIP_POSTGRES_TESTS=true` omits them when Docker is unavailable. Wider U7 crash-window and version-deployment acceptance cases in the original program plan remain separate follow-up work.
 
 ## Walkthroughs and invariants
 

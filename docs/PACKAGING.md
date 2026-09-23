@@ -23,7 +23,7 @@ packages/
   core/              @effect-resonate/core
   network-postgres/  @effect-resonate/network-postgres
   testing/           @effect-resonate/testing (private initially)
-    postgres/        Docker, IntegreSQL, and SQL acceptance fixtures
+    src/postgres/    Docker, IntegreSQL, and SQL acceptance fixtures
 examples/            workspace consumers / integration examples
 docs/                architecture notes
 ```
@@ -49,11 +49,11 @@ The first justified boundaries are:
 - `@effect-resonate/testing` is private initially and owns reusable black-box
   network conformance and recovery scenarios. Production packages do not ship
   those scenarios.
-- `packages/testing/postgres` composes core, the Postgres provider, the shared
+- `packages/testing/src/postgres` composes core, the Postgres provider, the shared
   scenarios, IntegreSQL, schema fixtures, worker processes, and CI orchestration.
   Its dependencies are development-only dependencies of the private testing
   package. Vitest global setup manages Docker for regular workspace tests;
-  `SKIP_POSTGRES_TESTS=1` skips those tests when Docker is unavailable.
+  `SKIP_POSTGRES_TESTS=true` skips those tests when Docker is unavailable.
 
 Keep provider unit tests with their provider package. Keep cross-package runtime
 evaluation under testing rather than teaching core about the first supported

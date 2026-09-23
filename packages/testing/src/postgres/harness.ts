@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { IntegreSQLClient } from "@devoxa/integresql-client"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
-import { makeNetworkHarnessLayer } from "../../src/index.js"
+import { makeNetworkHarnessLayer } from "../index.js"
 import { Client } from "pg"
 import { Effect, Layer } from "effect"
 import { inject } from "vitest"

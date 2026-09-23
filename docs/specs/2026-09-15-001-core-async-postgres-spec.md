@@ -468,7 +468,7 @@ or repair arbitrary database corruption.
 
 ## Postgres end-to-end acceptance environment
 
-- `packages/testing/postgres` runs the acceptance suite. It composes
+- `packages/testing/src/postgres` runs the acceptance suite. It composes
   `@effect-resonate/core`, `@effect-resonate/network-postgres`, and the reusable
   scenarios from the private `@effect-resonate/testing` package. Core and its
   tests contain no Postgres imports, branches, fixtures, or assertions.

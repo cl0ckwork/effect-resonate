@@ -252,7 +252,7 @@ Use Vitest plus `@effect/vitest` for package tests and an injectable protocol
 `Network` fake for deterministic core contract/lifecycle cases. A private
 `@effect-resonate/testing` workspace package owns black-box scenario functions
 parameterized by a network/runtime harness. Provider unit tests stay beside the
-provider. `packages/testing/postgres` is the concrete composition root: it wires core,
+provider. `packages/testing/src/postgres` is the concrete composition root: it wires core,
 the Postgres provider, shared scenarios, worker processes, SQL fixtures, and
 IntegreSQL. This prevents test infrastructure from leaking into either
 production package and lets future provider harnesses run the same suite.
@@ -476,10 +476,10 @@ and packs with no `Postgres`, `network-postgres`, or `pg` reference.
 
 ### U7 — IntegreSQL Postgres runtime evaluation suite
 
-Files: `packages/testing/postgres/src/harness.ts`,
-`packages/testing/postgres/src/__tests__/postgres.e2e.ts`,
-`packages/testing/postgres/fixtures/resonate.sql`,
-`packages/testing/postgres/fixtures/UPSTREAM.md`, container/CI configuration,
+Files: `packages/testing/src/postgres/harness.ts`,
+`packages/testing/src/postgres/__tests__/postgres.e2e.ts`,
+`packages/testing/src/postgres/fixtures/resonate.sql`,
+`packages/testing/src/postgres/fixtures/UPSTREAM.md`, container/CI configuration,
 and the testing package's Postgres-specific scripts and TypeScript configuration.
 
 Dependencies: U5–U6, `@devoxa/integresql-client`, `pg`, pinned IntegreSQL

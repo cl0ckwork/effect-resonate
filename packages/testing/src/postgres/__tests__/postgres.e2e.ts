@@ -11,7 +11,7 @@ import {
   lifecycle,
   replayRecovery,
   timeout
-} from "../../../src/index.js"
+} from "../../index.js"
 import { Effect, Layer } from "effect"
 import { controlUrl, scenarioLayer, withDatabase } from "../harness.js"
 

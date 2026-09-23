@@ -9,5 +9,6 @@
       "@effect-resonate/network-postgres/*": ["packages/network-postgres/src/*.ts"]
     }
   },
-  "include": ["src/**/*.ts", "postgres/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/__tests__/**"]
 }
