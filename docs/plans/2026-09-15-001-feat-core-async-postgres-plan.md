@@ -509,7 +509,7 @@ mapping supplies valid input to its V2 child. All waits poll public outcomes, ha
 deadlines, and print only sanitized IDs/states.
 
 Verification: one documented
-`pnpm --filter @effect-resonate/testing test:postgres` command starts or connects to
+`pnpm --filter @effect-resonate/testing test` command starts or connects to
 IntegreSQL/Postgres, initializes or reuses the hashed template, leases isolated
 databases, runs the bounded suite, and releases everything it owns.
 

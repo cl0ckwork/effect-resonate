@@ -3,9 +3,9 @@
 Run the U5 provider scenarios against the official SDK Postgres network:
 
 ```sh
-pnpm --filter @effect-resonate/testing test:postgres
+pnpm --filter @effect-resonate/testing test
 ```
 
-The command builds a Postgres 16 image with `pg_cron`, starts it with IntegreSQL under a unique Docker Compose project, applies the pinned `fixtures/resonate.sql` and the documented SDK compatibility migration to an IntegreSQL template, and leases a fresh database for each scenario. It verifies the schema and a per-lease timeout job before running each scenario. The suite also checks missing-schema and bad-credential acquisition failures against the real server. Cleanup unschedules the job, returns the database, and removes only the Compose project created by the command.
+Vitest global setup builds a Postgres 16 image with `pg_cron`, starts it with IntegreSQL under a unique Docker Compose project, applies the pinned `fixtures/resonate.sql` and the documented SDK compatibility migration to an IntegreSQL template, and provides its ports and template hash to the tests. Each scenario leases a fresh database and verifies the schema and a per-lease timeout job. The suite also checks missing-schema and bad-credential acquisition failures against the real server. Cleanup unschedules the job, returns the database, and removes only the Compose project created by the test run.
 
-The regular workspace `pnpm test` runs without Docker; this suite is an explicit integration gate. Docker and network access are needed for the first image build. The upstream SQL revision and fixture hash inputs are recorded in [fixtures/UPSTREAM.md](fixtures/UPSTREAM.md).
+The regular workspace `pnpm test` includes this suite. Set `SKIP_POSTGRES_TESTS=1` to run the other tests without Docker. Docker and network access are needed for the first image build. The upstream SQL revision and fixture hash inputs are recorded in [fixtures/UPSTREAM.md](fixtures/UPSTREAM.md).

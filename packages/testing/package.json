@@ -9,10 +9,9 @@
   ],
   "scripts": {
     "build": "zshy",
-    "typecheck": "tsc -p tsconfig.dev.json --noEmit && tsc -p tsconfig.postgres.json --noEmit",
+    "typecheck": "tsc -p tsconfig.dev.json --noEmit",
     "test:types": "tsc -p tsconfig.types.json",
     "test": "vitest run",
-    "test:postgres": "node postgres/scripts/run.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {

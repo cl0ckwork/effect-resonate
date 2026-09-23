@@ -52,7 +52,8 @@ The first justified boundaries are:
 - `packages/testing/postgres` composes core, the Postgres provider, the shared
   scenarios, IntegreSQL, schema fixtures, worker processes, and CI orchestration.
   Its dependencies are development-only dependencies of the private testing
-  package; its Docker command is separate from regular workspace tests.
+  package. Vitest global setup manages Docker for regular workspace tests;
+  `SKIP_POSTGRES_TESTS=1` skips those tests when Docker is unavailable.
 
 Keep provider unit tests with their provider package. Keep cross-package runtime
 evaluation under testing rather than teaching core about the first supported
