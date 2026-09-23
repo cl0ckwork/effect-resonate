@@ -163,12 +163,13 @@ type _ClientLayerRequirements = Assert<
   Equal<Layer.Services<typeof ClientLayer>, ResonateNetworkService | ResonateFunctions.Handlers<typeof CheckoutFunctions>>
 >
 
-declare const compatibleNetwork: ResonateNetwork.CompatibleNetwork
+declare const compatibleNetwork: import("@resonatehq/sdk").Network
 // @ts-expect-error the network instance is supplied by the ResonateNetwork Layer
 ResonateClient.layer({ drainTimeout: "30 seconds", network: compatibleNetwork })
-const NetworkLive = ResonateNetwork.make({
-  factory: Effect.succeed(compatibleNetwork)
-})
+const NetworkLive = Layer.succeed(
+  ResonateNetwork.ResonateNetwork,
+  ResonateNetwork.ResonateNetwork.of({ make: Effect.succeed(compatibleNetwork) })
+)
 const ConfiguredClientLayer = ClientLayer.pipe(Layer.provide([
   NetworkLive,
   ReserveLive,
@@ -353,9 +354,6 @@ ResonateClient.run(Checkout, "checkout-1", { sku: "sku-1" })
 
 // @ts-expect-error client Layer construction accepts one named options object
 ResonateClient.layer(CheckoutFunctions, { drainTimeout: "30 seconds" })
-
-// @ts-expect-error network Layer construction accepts one named options object
-ResonateNetwork.make(Effect.succeed(compatibleNetwork))
 
 declare const context: WorkflowContext
 type _WorkflowContextSurface = Assert<Equal<keyof WorkflowContext, keyof SdkContext>>

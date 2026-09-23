@@ -1,4 +1,5 @@
 import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"
+import type { Network } from "@resonatehq/sdk"
 import { Effect, Layer } from "effect"
 import {
   completion,
@@ -8,7 +9,7 @@ import {
   replayRecovery
 } from "../index.js"
 
-declare const compatibleNetwork: ResonateNetwork.CompatibleNetwork
+declare const compatibleNetwork: Network
 
 const resource = {
   timing: {
@@ -32,7 +33,10 @@ const HarnessLive = makeNetworkHarnessLayer({
   setupTimeout: 1_000,
   acquire: Effect.succeed(resource)
 })
-const NetworkLive = ResonateNetwork.make({ factory: Effect.succeed(compatibleNetwork) })
+const NetworkLive = Layer.succeed(
+  ResonateNetwork.ResonateNetwork,
+  ResonateNetwork.ResonateNetwork.of({ make: Effect.succeed(compatibleNetwork) })
+)
 const ProviderLive = Layer.merge(HarnessLive, NetworkLive)
 
 completion.pipe(Effect.provide(ProviderLive))

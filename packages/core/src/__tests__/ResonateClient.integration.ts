@@ -11,9 +11,10 @@ import * as Workflow from "../Workflow.js"
 
 const localNetworkLayer = (
   factory: () => LocalNetwork
-): Layer.Layer<ResonateNetwork.ResonateNetwork> => ResonateNetwork.make({
-  factory: Effect.sync(factory)
-})
+): Layer.Layer<ResonateNetwork.ResonateNetwork> => Layer.succeed(
+  ResonateNetwork.ResonateNetwork,
+  ResonateNetwork.ResonateNetwork.of({ make: Effect.sync(factory) })
+)
 
 const runWith = <A, E>(
   effect: Effect.Effect<A, E, ResonateClient.ResonateClient>,
@@ -764,7 +765,10 @@ describe("ResonateClient", () => {
       functions: Functions,
       drainTimeout: Duration.seconds(1)
     }).pipe(Layer.provide(Layer.merge(
-      ResonateNetwork.make({ factory: Effect.fail(providerError) }),
+      Layer.succeed(
+        ResonateNetwork.ResonateNetwork,
+        ResonateNetwork.ResonateNetwork.of({ make: Effect.fail(providerError) })
+      ),
       Ping.toLayer(async () => Result.succeed(null))
     )))
 
