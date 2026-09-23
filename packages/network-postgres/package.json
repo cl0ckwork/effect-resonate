@@ -13,7 +13,6 @@
   "scripts": {
     "build": "zshy",
     "typecheck": "tsc --noEmit",
-    "test:types": "tsc -p tsconfig.types.json",
     "test": "vitest run",
     "clean": "rm -rf dist"
   },
