@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.dev.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@effect-resonate/core": ["packages/core/src/index.ts"],
+      "@effect-resonate/core/*": ["packages/core/src/*.ts"],
+      "@effect-resonate/network-postgres": ["packages/network-postgres/src/index.ts"],
+      "@effect-resonate/network-postgres/*": ["packages/network-postgres/src/*.ts"]
+    }
+  },
+  "include": ["postgres/src/**/*.ts"],
+  "exclude": []
+}

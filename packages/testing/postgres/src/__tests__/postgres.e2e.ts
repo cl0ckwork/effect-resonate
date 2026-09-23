@@ -11,7 +11,7 @@ import {
   lifecycle,
   replayRecovery,
   timeout
-} from "@effect-resonate/testing"
+} from "../../../src/index.js"
 import { Effect, Layer } from "effect"
 import { controlUrl, initializeTemplate, scenarioLayer, withDatabase } from "../harness.js"
 

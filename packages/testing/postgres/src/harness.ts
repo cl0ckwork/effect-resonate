@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { IntegreSQLClient, type IntegreSQLDatabaseConfig } from "@devoxa/integresql-client"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
-import { makeNetworkHarnessLayer } from "@effect-resonate/testing"
+import { makeNetworkHarnessLayer } from "../../src/index.js"
 import { Client } from "pg"
 import { Effect, Layer } from "effect"
 
@@ -12,7 +12,7 @@ const postgresPort = Number(process.env.POSTGRES_E2E_PORT)
 const integresqlPort = Number(process.env.INTEGRESQL_E2E_PORT)
 
 if (!Number.isInteger(postgresPort) || !Number.isInteger(integresqlPort)) {
-  throw new Error("The Postgres e2e suite must run through scripts/run.mjs")
+  throw new Error("The Postgres e2e suite must run through postgres/scripts/run.mjs")
 }
 
 const integresql = new IntegreSQLClient({ url: `http://127.0.0.1:${integresqlPort}/` })

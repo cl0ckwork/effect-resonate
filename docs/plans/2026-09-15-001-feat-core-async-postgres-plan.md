@@ -252,10 +252,10 @@ Use Vitest plus `@effect/vitest` for package tests and an injectable protocol
 `Network` fake for deterministic core contract/lifecycle cases. A private
 `@effect-resonate/testing` workspace package owns black-box scenario functions
 parameterized by a network/runtime harness. Provider unit tests stay beside the
-provider. `apps/postgres-e2e` is the concrete composition root: it wires core,
+provider. `packages/testing/postgres` is the concrete composition root: it wires core,
 the Postgres provider, shared scenarios, worker processes, SQL fixtures, and
 IntegreSQL. This prevents test infrastructure from leaking into either
-production package and lets future network apps run the same suite.
+production package and lets future provider harnesses run the same suite.
 
 IntegreSQL initializes a template keyed by the complete fixture hash and leases
 a fresh database per test. Since `pg_cron` exists in only one database per
@@ -474,15 +474,13 @@ failures against PostgreSQL.
 Verification: the provider builds and packs independently; core builds, tests,
 and packs with no `Postgres`, `network-postgres`, or `pg` reference.
 
-### U7 — IntegreSQL Postgres runtime evaluation app
+### U7 — IntegreSQL Postgres runtime evaluation suite
 
-Files: `apps/postgres-e2e/package.json` (private workspace package
-`@effect-resonate/postgres-e2e`), `apps/postgres-e2e/tsconfig.json`,
-`apps/postgres-e2e/src/harness.ts`, `apps/postgres-e2e/src/worker.ts`,
-`apps/postgres-e2e/src/__tests__/postgres.e2e.ts`,
-`apps/postgres-e2e/fixtures/resonate.sql`,
-`apps/postgres-e2e/fixtures/UPSTREAM.md`, container/CI configuration, and root
-scripts plus `pnpm-workspace.yaml` for the `apps/*` workspace boundary.
+Files: `packages/testing/postgres/src/harness.ts`,
+`packages/testing/postgres/src/__tests__/postgres.e2e.ts`,
+`packages/testing/postgres/fixtures/resonate.sql`,
+`packages/testing/postgres/fixtures/UPSTREAM.md`, container/CI configuration,
+and the testing package's Postgres-specific scripts and TypeScript configuration.
 
 Dependencies: U5–U6, `@devoxa/integresql-client`, `pg`, pinned IntegreSQL
 server `ghcr.io/allaboutapps/integresql:v1.1.0` by immutable digest, and a
@@ -511,7 +509,7 @@ mapping supplies valid input to its V2 child. All waits poll public outcomes, ha
 deadlines, and print only sanitized IDs/states.
 
 Verification: one documented
-`pnpm --filter @effect-resonate/postgres-e2e test` command starts or connects to
+`pnpm --filter @effect-resonate/testing test:postgres` command starts or connects to
 IntegreSQL/Postgres, initializes or reuses the hashed template, leases isolated
 databases, runs the bounded suite, and releases everything it owns.
 

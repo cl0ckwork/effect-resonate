@@ -185,46 +185,6 @@ importers:
         specifier: 8.70.0
         version: 8.70.0(eslint@10.10.0)(typescript@5.9.2)
 
-  apps/postgres-e2e:
-    dependencies:
-      '@effect-resonate/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@effect-resonate/network-postgres':
-        specifier: workspace:*
-        version: link:../../packages/network-postgres
-      '@effect-resonate/testing':
-        specifier: workspace:*
-        version: link:../../packages/testing
-      '@resonatehq/sdk':
-        specifier: ^0.11.4
-        version: 0.11.5(pg@8.23.0)
-      effect:
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115
-      pg:
-        specifier: ^8.13.1
-        version: 8.23.0
-    devDependencies:
-      '@devoxa/integresql-client':
-        specifier: 2.1.2
-        version: 2.1.2
-      '@effect/vitest':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.1(@types/node@22.20.4)(vite@8.3.0(@types/node@22.20.4)))
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.20.4
-      '@types/pg':
-        specifier: ^8.11.10
-        version: 8.23.1
-      typescript:
-        specifier: 5.9.2
-        version: 5.9.2
-      vitest:
-        specifier: 5.0.1
-        version: 5.0.1(@types/node@22.20.4)(vite@8.3.0(@types/node@22.20.4))
-
   packages/core:
     devDependencies:
       '@effect/vitest':
@@ -282,18 +242,33 @@ importers:
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115
     devDependencies:
+      '@devoxa/integresql-client':
+        specifier: 2.1.2
+        version: 2.1.2
+      '@effect-resonate/network-postgres':
+        specifier: workspace:*
+        version: link:../network-postgres
       '@effect/vitest':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2)))
+        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.1(@types/node@22.20.4)(vite@8.3.0(@types/node@22.20.4)))
       '@resonatehq/sdk':
         specifier: ^0.11.4
         version: 0.11.5(pg@8.23.0)
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.4
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.0
       typescript:
         specifier: 5.9.2
         version: 5.9.2
       vitest:
         specifier: 5.0.1
-        version: 5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
+        version: 5.0.1(@types/node@22.20.4)(vite@8.3.0(@types/node@22.20.4))
       zshy:
         specifier: ^0.7.2
         version: 0.7.3(typescript@5.9.2)

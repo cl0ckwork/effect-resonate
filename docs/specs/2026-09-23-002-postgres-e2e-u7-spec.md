@@ -4,7 +4,7 @@ Status: implemented on the U7 branch, stacked on U6.
 
 ## Objective and scope
 
-Run U5's eight reusable provider scenarios through `@effect-resonate/network-postgres` against an isolated, migrated PostgreSQL 16 database. Check real missing-schema and bad-credential acquisition failures as well. Keep Docker, IntegreSQL, and SQL fixtures in a private app. The production packages must not gain test infrastructure dependencies.
+Run U5's eight reusable provider scenarios through `@effect-resonate/network-postgres` against an isolated, migrated PostgreSQL 16 database. Check real missing-schema and bad-credential acquisition failures as well. Keep Docker, IntegreSQL, and SQL fixtures under the private `@effect-resonate/testing` package. The production packages must not gain test infrastructure dependencies.
 
 One command starts the services, prepares a hashed template, leases a fresh database for each scenario, and removes the services it started. The regular unit test command remains independent of Docker. Wider U7 crash-window and version-deployment acceptance cases in the original program plan remain separate follow-up work.
 
@@ -18,8 +18,8 @@ One command starts the services, prepares a hashed template, leases a fresh data
 | A scenario fails after lease creation → teardown unschedules its cron job and returns its lease | Later scenarios do not inherit its job, connections, or database state | S2, L1 |
 
 - **S1:** A scenario never runs against an unmigrated or wrong-version database. Template setup applies a commit-pinned `resonate.sql`, then a separately recorded SDK compatibility migration; lease setup checks the schema and active cron job.
-- **S2:** Every scenario gets a distinct IntegreSQL lease; worker replacement within one scenario keeps that lease. The test app owns lease release after workers stop.
-- **S3:** The U5 scenario suite remains provider-neutral. Only this app selects the Postgres Layer.
+- **S2:** Every scenario gets a distinct IntegreSQL lease; worker replacement within one scenario keeps that lease. The Postgres test harness owns lease release after workers stop.
+- **S3:** The U5 scenario suite remains provider-neutral. Only the Postgres test harness selects the Postgres Layer.
 - **L1:** The runner removes only the Compose project it created; each lease cleanup unschedules its job and returns the database even after a scenario failure.
 
 ## Migration and failure boundary

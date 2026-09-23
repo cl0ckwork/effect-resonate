@@ -9,9 +9,10 @@
   ],
   "scripts": {
     "build": "zshy",
-    "typecheck": "tsc -p tsconfig.dev.json --noEmit",
+    "typecheck": "tsc -p tsconfig.dev.json --noEmit && tsc -p tsconfig.postgres.json --noEmit",
     "test:types": "tsc -p tsconfig.types.json",
     "test": "vitest run",
+    "test:postgres": "node postgres/scripts/run.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -19,8 +20,13 @@
     "effect": "4.0.0-rc.115"
   },
   "devDependencies": {
+    "@devoxa/integresql-client": "2.1.2",
     "@effect/vitest": "4.0.0-rc.115",
+    "@effect-resonate/network-postgres": "workspace:*",
     "@resonatehq/sdk": "^0.11.4",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1",
     "typescript": "5.9.2",
     "vitest": "5.0.1",
     "zshy": "^0.7.2"

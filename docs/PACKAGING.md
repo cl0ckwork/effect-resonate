@@ -23,8 +23,7 @@ packages/
   core/              @effect-resonate/core
   network-postgres/  @effect-resonate/network-postgres
   testing/           @effect-resonate/testing (private initially)
-apps/
-  postgres-e2e/      private runtime composition for Postgres acceptance
+    postgres/        Docker, IntegreSQL, and SQL acceptance fixtures
 examples/            workspace consumers / integration examples
 docs/                architecture notes
 ```
@@ -50,12 +49,13 @@ The first justified boundaries are:
 - `@effect-resonate/testing` is private initially and owns reusable black-box
   network conformance and recovery scenarios. Production packages do not ship
   those scenarios.
-- `apps/postgres-e2e` is a private composition root for runtime acceptance. It
-  wires core, the Postgres provider, the shared scenarios, IntegreSQL, schema
-  fixtures, worker processes, and CI orchestration.
+- `packages/testing/postgres` composes core, the Postgres provider, the shared
+  scenarios, IntegreSQL, schema fixtures, worker processes, and CI orchestration.
+  Its dependencies are development-only dependencies of the private testing
+  package; its Docker command is separate from regular workspace tests.
 
-Keep provider unit tests with their provider package. Put cross-package runtime
-evaluation in an app rather than teaching core about the first supported
+Keep provider unit tests with their provider package. Keep cross-package runtime
+evaluation under testing rather than teaching core about the first supported
 network.
 
 ## Build model

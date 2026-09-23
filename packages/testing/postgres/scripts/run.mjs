@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const postgresRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const packageRoot = dirname(postgresRoot)
 const project = `effect-resonate-u7-${randomUUID().slice(0, 8)}`
-const compose = (...args) => execFileSync("docker", ["compose", "-f", join(appRoot, "compose.yaml"), "-p", project, ...args], {
-  cwd: appRoot,
+const compose = (...args) => execFileSync("docker", ["compose", "-f", join(postgresRoot, "compose.yaml"), "-p", project, ...args], {
+  cwd: postgresRoot,
   encoding: "utf8",
   stdio: ["inherit", "pipe", "inherit"]
 })
@@ -20,8 +21,10 @@ const port = (service, containerPort) => {
 
 try {
   compose("up", "-d", "--build", "--wait")
-  const result = spawnSync(join(appRoot, "node_modules", ".bin", "vitest"), ["run", ...process.argv.slice(2)], {
-    cwd: appRoot,
+  const result = spawnSync(join(packageRoot, "node_modules", ".bin", "vitest"), [
+    "run", "--config", join(packageRoot, "vitest.postgres.config.ts"), ...process.argv.slice(2)
+  ], {
+    cwd: packageRoot,
     stdio: "inherit",
     env: {
       ...process.env,
