@@ -1,5 +1,4 @@
-import { it } from "@effect/vitest"
-import { describe, expect } from "vitest"
+import { assert, describe, it } from "@effect/vitest"
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 import { ResonateSdkError } from "@effect-resonate/core/CoreExecutionError"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
@@ -36,10 +35,10 @@ const expectFailure = ({ connectionString }: { readonly connectionString: string
   const failure = yield* Effect.flip(
     ResonateClient.ResonateClient.pipe(Effect.provide(ClientLive))
   )
-  expect(failure).toBeInstanceOf(ResonateSdkError)
+  assert.instanceOf(failure, ResonateSdkError)
   if (!(failure instanceof ResonateSdkError)) throw failure
-  expect(failure.operation).toBe("network.init")
-  expect(failure.cause).toBeDefined()
+  assert.strictEqual(failure.operation, "network.init")
+  assert.isDefined(failure.cause)
 })
 
 describe("real Postgres acquisition failures", () => {

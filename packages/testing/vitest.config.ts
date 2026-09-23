@@ -28,7 +28,7 @@ export default defineConfig({
       "src/**/__tests__/**/*.unit.ts",
       "src/**/__tests__/**/*.integration.ts"
     ],
-    exclude: skipPostgres ? ["src/postgres/__tests__/PostgresNetwork.integration.ts"] : [],
+    exclude: skipPostgres ? ["src/postgres/__tests__/PostgresNetworkScenarios.integration.ts"] : [],
     globalSetup: skipPostgres ? [] : ["./src/postgres/globalSetup.ts"],
     pool: "threads",
     maxWorkers: 2,
