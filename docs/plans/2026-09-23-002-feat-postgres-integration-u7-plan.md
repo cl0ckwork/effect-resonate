@@ -1,0 +1,11 @@
+# U7 implementation plan: Postgres conformance environment
+
+Source: `docs/specs/2026-09-23-002-postgres-integration-u7-spec.md`. Stack base: U6 PR #6.
+
+1. Add the Postgres integration suite under `packages/testing/src/__tests__` and its setup, Layer, and fixtures under `packages/testing/src/postgres`. Keep Postgres and IntegreSQL client dependencies in the private testing package's development dependencies. Regular `pnpm test` includes Postgres; `SKIP_POSTGRES_TESTS=true` omits only the Postgres integration tests.
+2. Pin the official Postgres 16 base and IntegreSQL images by digest. Install `pg_cron` in the Postgres image, preload it, and create its extension in the control database. Use dynamically published loopback ports and a unique Compose project per invocation.
+3. Vendor commit-pinned upstream `resonate.sql` unchanged. Apply it to the IntegreSQL template, then apply the separately documented SDK global-promise compatibility migration. Use IntegreSQL's `hashFiles` for the migration fixtures. Close the migration connection before template finalization.
+4. For every U5 scenario, acquire a fresh database through the IntegreSQL SDK, schedule and verify a named `cron.schedule_in_database` timeout job, provide the Postgres network and harness Layers in that test's Effect scope, then unschedule the job after workers stop. Keep the same database across worker replacement. Vitest teardown removes the whole Compose project and its cloned databases.
+5. Run all eight U5 scenarios locally and in the main CI test job. Verify testing package typecheck, regular `pnpm check` and `pnpm test`, Docker-backed Postgres tests, and Compose teardown. Add concise run instructions and record the SQL provenance.
+
+Risks: the pinned SQL's generated `external` field does not recognize SDK 0.11.5's `resonate:scope=global`; without the compatibility migration, recovery can fail with `task.suspend` status 422. The SDK source fix `a3a3ccf` adds `resonate:external=true`; remove the migration after upgrading to a published version with that fix and rerunning recovery. A worker may stop while a task is still acquired; the shared recovery scenario uses a five-second task lease so PostgreSQL's timeout driver can reassign it within the bounded test deadline.

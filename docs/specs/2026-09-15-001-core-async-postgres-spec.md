@@ -466,7 +466,7 @@ The database schema itself is trusted operational infrastructure. V1 detects
 missing/incompatible procedures at readiness and runtime but does not validate
 or repair arbitrary database corruption.
 
-## Postgres end-to-end acceptance environment
+## Postgres integration acceptance environment
 
 - `packages/testing/src/postgres` runs the acceptance suite. It composes
   `@effect-resonate/core`, `@effect-resonate/network-postgres`, and the reusable

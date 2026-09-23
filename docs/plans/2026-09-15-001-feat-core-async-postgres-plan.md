@@ -257,11 +257,11 @@ the Postgres provider, shared scenarios, worker processes, SQL fixtures, and
 IntegreSQL. This prevents test infrastructure from leaking into either
 production package and lets future provider harnesses run the same suite.
 
-IntegreSQL initializes a template keyed by the complete fixture hash and leases
+IntegreSQL initializes a template keyed by the migration fixture hash and creates
 a fresh database per test. Since `pg_cron` exists in only one database per
-cluster, the app schedules timeout processing into each leased database with
-`cron.schedule_in_database(...)`, then unschedules it and closes every
-connection before returning the lease.
+cluster, the test Layer schedules timeout processing into each database with
+`cron.schedule_in_database(...)`, then unschedules it and closes its connections
+when the test scope ends. Compose teardown removes the databases after the run.
 
 ## Implementation units
 
@@ -476,10 +476,10 @@ and packs with no `Postgres`, `network-postgres`, or `pg` reference.
 
 ### U7 — IntegreSQL Postgres runtime evaluation suite
 
-Files: `packages/testing/src/postgres/harness.ts`,
-`packages/testing/src/postgres/__tests__/postgres.e2e.ts`,
-`packages/testing/src/postgres/fixtures/resonate.sql`,
-`packages/testing/src/postgres/fixtures/UPSTREAM.md`, container/CI configuration,
+Files: `packages/testing/src/postgres/layers.ts`,
+`packages/testing/src/__tests__/PostgresNetwork.integration.ts`,
+`packages/testing/src/postgres/docker/fixtures/resonate.sql`,
+`packages/testing/src/postgres/docker/fixtures/UPSTREAM.md`, container/CI configuration,
 and the testing package's Postgres-specific scripts and TypeScript configuration.
 
 Dependencies: U5–U6, `@devoxa/integresql-client`, `pg`, pinned IntegreSQL

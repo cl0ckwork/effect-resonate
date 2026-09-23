@@ -26,10 +26,11 @@ export default defineConfig({
   test: {
     include: [
       "src/**/__tests__/**/*.unit.ts",
-      "src/**/__tests__/**/*.integration.ts",
-      ...(skipPostgres ? [] : ["src/postgres/**/__tests__/**/*.e2e.ts"])
+      "src/**/__tests__/**/*.integration.ts"
     ],
+    exclude: skipPostgres ? ["src/__tests__/PostgresNetwork.integration.ts"] : [],
     globalSetup: skipPostgres ? [] : ["./src/postgres/globalSetup.ts"],
+    setupFiles: skipPostgres ? [] : ["./src/postgres/setupFile.ts"],
     pool: "threads",
     maxWorkers: 2,
     fileParallelism: false,

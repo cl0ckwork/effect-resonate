@@ -1,7 +1,7 @@
 services:
   postgres:
     build:
-      context: ./docker
+      context: ./src/postgres/docker
     command:
       - postgres
       - -c

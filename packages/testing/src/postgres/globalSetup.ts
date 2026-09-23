@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { IntegreSQLClient } from "@devoxa/integresql-client"
 import { Effect, Schema } from "effect"
 import { Client } from "pg"
 import type { TestProject } from "vitest/node"
+import { createIntegresqlClient, dbConfigToHostUrl, hashMigrations } from "./integresql.js"
 
 declare module "vitest" {
   interface ProvidedContext {
@@ -13,8 +13,8 @@ declare module "vitest" {
   }
 }
 
-const composeFile = fileURLToPath(new URL("./docker-compose.yml", import.meta.url))
-const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))
+const composeFile = fileURLToPath(new URL("../../docker-compose.yml", import.meta.url))
+const fixture = (name: string) => fileURLToPath(new URL(`./docker/fixtures/${name}`, import.meta.url))
 const Port = Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0))
 
 export const setup = async (project: TestProject) => {
@@ -30,14 +30,10 @@ export const setup = async (project: TestProject) => {
     compose("up", "-d", "--build", "--wait")
     const postgresPort = port("postgres", 5432)
     const integresqlPort = port("integresql", 5000)
-    const integresql = new IntegreSQLClient({ url: `http://127.0.0.1:${integresqlPort}/` })
-    const templateHash = await integresql.hashFiles([
-      "src/postgres/fixtures/**/*", "src/postgres/docker/**/*", "src/postgres/docker-compose.yml"
-    ])
+    const integresql = createIntegresqlClient(`http://127.0.0.1:${integresqlPort}/`)
+    const templateHash = await hashMigrations(integresql)
     await integresql.initializeTemplate(templateHash, async (database) => {
-      const connectionString = integresql.databaseConfigToConnectionUrl({
-        ...database, host: "127.0.0.1", port: postgresPort
-      })
+      const connectionString = dbConfigToHostUrl(integresql, database, postgresPort)
       await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
         const client = yield* Effect.acquireRelease(
           Effect.promise(async () => {
