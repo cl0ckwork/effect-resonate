@@ -6,7 +6,7 @@ import * as PostgresNetwork from "@effect-resonate/network-postgres"
 import { Effect, Layer } from "effect"
 import * as NetworkScenarios from "../../NetworkScenarios.js"
 import * as RecoveryScenarios from "../../RecoveryScenarios.js"
-import { testEnv } from "../env.js"
+import { PostgresTestEnv } from "../env.js"
 import { itest } from "../itest.js"
 import { controlDatabaseUrl } from "../PostgresItestLayer.js"
 
@@ -44,14 +44,14 @@ const expectFailure = ({ connectionString }: { readonly connectionString: string
 
 describe("real Postgres acquisition failures", () => {
   it.live("reports a missing Resonate schema", () => Effect.gen(function*() {
-    const { postgresPort } = yield* testEnv
+    const { postgresPort } = yield* PostgresTestEnv
     yield* expectFailure({ connectionString: controlDatabaseUrl({ postgresPort }) })
-  }))
+  }).pipe(Effect.provide(PostgresTestEnv.layer)))
 
   it.live("reports a failed database login", () => Effect.gen(function*() {
-    const { postgresPort } = yield* testEnv
+    const { postgresPort } = yield* PostgresTestEnv
     yield* expectFailure({
       connectionString: controlDatabaseUrl({ postgresPort }).replace("effect_resonate_test_password", "wrong-password")
     })
-  }))
+  }).pipe(Effect.provide(PostgresTestEnv.layer)))
 })

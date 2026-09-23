@@ -5,7 +5,7 @@ import { Effect, Layer, type Duration } from "effect"
 import { Client } from "pg"
 import type { HarnessTiming } from "../NetworkHarness.js"
 import { makeNetworkHarnessLayer } from "../index.js"
-import { testEnv } from "./env.js"
+import { PostgresTestEnv } from "./env.js"
 import { createIntegresqlClient, dbConfigToHostUrl } from "./integresql.js"
 
 export const controlDatabaseUrl = ({ postgresPort }: { readonly postgresPort: number }): string =>
@@ -52,8 +52,8 @@ const unscheduleTimeouts = (options: { readonly postgresPort: number; readonly j
   })
 
 const testDatabase = Effect.gen(function*() {
-  const env = yield* testEnv
-  const integresql = createIntegresqlClient({ url: env.integresqlUrl.toString() })
+  const env = yield* PostgresTestEnv
+  const integresql = createIntegresqlClient({ url: env.integresqlUrl })
   const lease = yield* Effect.acquireRelease(
     Effect.promise(() => integresql.getTestDatabase(env.templateHash)).pipe(
       Effect.map((database) => ({

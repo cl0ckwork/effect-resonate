@@ -2,16 +2,11 @@ import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { Config, Effect, Schema } from "effect"
+import { Effect, Schema } from "effect"
 import { Client } from "pg"
 import type { TestProject } from "vitest/node"
+import { schemaVersion } from "./env.js"
 import { createIntegresqlClient, dbConfigToHostUrl, hashMigrations } from "./integresql.js"
-
-declare module "vitest" {
-  interface ProvidedContext {
-    postgres: { postgresPort: number; integresqlPort: number; templateHash: string }
-  }
-}
 
 const composeFile = fileURLToPath(new URL("../../docker-compose.yml", import.meta.url))
 const fixture = ({ name }: { readonly name: string }) =>
@@ -63,9 +58,7 @@ const setupEffect = ({ project }: { readonly project: TestProject }) => Effect.g
     yield* compose({ projectName, command: ["up", "-d", "--build", "--wait"] })
     const postgresPort = yield* publishedPort({ projectName, service: "postgres", containerPort: 5432 })
     const integresqlPort = yield* publishedPort({ projectName, service: "integresql", containerPort: 5000 })
-    const expectedSchemaVersion = yield* Config.String("POSTGRES_TEST_SCHEMA_VERSION").pipe(
-      Config.withDefault("0.1.0")
-    )
+    const expectedSchemaVersion = yield* schemaVersion
     const integresql = createIntegresqlClient({ url: `http://127.0.0.1:${integresqlPort}/` })
     const templateHash = yield* Effect.promise(() => hashMigrations({ client: integresql }))
     yield* Effect.promise(() => integresql.initializeTemplate(
