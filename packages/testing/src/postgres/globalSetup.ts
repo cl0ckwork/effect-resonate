@@ -17,47 +17,53 @@ const composeFile = fileURLToPath(new URL("../../docker-compose.yml", import.met
 const fixture = (name: string) => fileURLToPath(new URL(`./docker/fixtures/${name}`, import.meta.url))
 const Port = Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThan(0))
 
-export const setup = async (project: TestProject) => {
-  const projectName = `effect-resonate-test-${randomUUID().slice(0, 8)}`
-  const compose = (...args: string[]) => execFileSync(
-    "docker", ["compose", "-f", composeFile, "-p", projectName, ...args],
-    { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] }
+const compose = (projectName: string, ...args: string[]) => Effect.try(() => execFileSync(
+  "docker", ["compose", "-f", composeFile, "-p", projectName, ...args],
+  { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] }
+))
+
+const port = (projectName: string, service: string, containerPort: number) => Effect.gen(function*() {
+  const address = yield* compose(projectName, "port", service, String(containerPort))
+  return yield* Schema.decodeUnknownEffect(Port)(/:(\d+)$/.exec(address.trim())?.[1])
+})
+
+const migrate = (connectionString: string) => Effect.scoped(Effect.gen(function*() {
+  const client = yield* Effect.acquireRelease(
+    Effect.sync(() => new Client({ connectionString })),
+    (client) => Effect.promise(() => client.end())
   )
-  const port = (service: string, containerPort: number) =>
-    Schema.decodeUnknownSync(Port)(/:(\d+)$/.exec(compose("port", service, String(containerPort)).trim())?.[1])
-
-  try {
-    compose("up", "-d", "--build", "--wait")
-    const postgresPort = port("postgres", 5432)
-    const integresqlPort = port("integresql", 5000)
-    const integresql = createIntegresqlClient(`http://127.0.0.1:${integresqlPort}/`)
-    const templateHash = await hashMigrations(integresql)
-    await integresql.initializeTemplate(templateHash, async (database) => {
-      const connectionString = dbConfigToHostUrl(integresql, database, postgresPort)
-      await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
-        const client = yield* Effect.acquireRelease(
-          Effect.promise(async () => {
-            const client = new Client({ connectionString })
-            await client.connect()
-            return client
-          }),
-          (client) => Effect.promise(() => client.end())
-        )
-        yield* Effect.promise(async () => {
-          await client.query(await readFile(fixture("resonate.sql"), "utf8"))
-          await client.query(await readFile(fixture("001-sdk-global-promise.sql"), "utf8"))
-          const check = await client.query<{ version: string | null }>(
-            "SELECT resonate.get_schema_version() AS version"
-          )
-          if (check.rows[0]?.version !== "0.1.0") throw new Error("Resonate SQL migration did not apply")
-        })
-      })))
-    })
-    project.provide("postgres", { postgresPort, integresqlPort, templateHash })
-  } catch (error) {
-    compose("down", "-v", "--remove-orphans")
-    throw error
+  yield* Effect.promise(() => client.connect())
+  const schema = yield* Effect.promise(() => readFile(fixture("resonate.sql"), "utf8"))
+  yield* Effect.promise(() => client.query(schema))
+  const compatibility = yield* Effect.promise(() => readFile(fixture("001-sdk-global-promise.sql"), "utf8"))
+  yield* Effect.promise(() => client.query(compatibility))
+  const check = yield* Effect.promise(() => client.query<{ version: string | null }>(
+    "SELECT resonate.get_schema_version() AS version"
+  ))
+  if (check.rows[0]?.version !== "0.1.0") {
+    return yield* Effect.fail(new Error("Resonate SQL migration did not apply"))
   }
+}))
 
-  return () => { compose("down", "-v", "--remove-orphans") }
-}
+const setupEffect = (project: TestProject) => Effect.gen(function*() {
+  const projectName = `effect-resonate-test-${randomUUID().slice(0, 8)}`
+  const teardown = compose(projectName, "down", "-v", "--remove-orphans")
+  yield* Effect.gen(function*() {
+    yield* compose(projectName, "up", "-d", "--build", "--wait")
+    const postgresPort = yield* port(projectName, "postgres", 5432)
+    const integresqlPort = yield* port(projectName, "integresql", 5000)
+    const integresql = createIntegresqlClient(`http://127.0.0.1:${integresqlPort}/`)
+    const templateHash = yield* Effect.promise(() => hashMigrations(integresql))
+    yield* Effect.promise(() => integresql.initializeTemplate(
+      templateHash,
+      (database) => Effect.runPromise(
+        migrate(dbConfigToHostUrl(integresql, database, postgresPort))
+      )
+    ))
+    yield* Effect.sync(() => project.provide("postgres", { postgresPort, integresqlPort, templateHash }))
+  }).pipe(Effect.onError(() => teardown.pipe(Effect.asVoid, Effect.orDie)))
+
+  return () => Effect.runPromise(teardown)
+})
+
+export const setup = (project: TestProject) => Effect.runPromise(setupEffect(project))
