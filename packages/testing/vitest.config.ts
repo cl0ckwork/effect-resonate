@@ -1,7 +1,11 @@
 import { fileURLToPath } from "node:url"
+import { Config, Effect } from "effect"
 import { defineConfig } from "vitest/config"
 
-const postgres = process.env.SKIP_POSTGRES_TESTS !== "1"
+const postgres = Effect.runSync(Config.String("SKIP_POSTGRES_TESTS").pipe(
+  Config.withDefault("0"),
+  Effect.map((value) => value !== "1")
+))
 
 export default defineConfig({
   resolve: {
@@ -27,7 +31,10 @@ export default defineConfig({
       ...(postgres ? ["postgres/src/**/__tests__/**/*.e2e.ts"] : [])
     ],
     globalSetup: postgres ? ["./postgres/globalSetup.ts"] : [],
+    pool: "threads",
+    maxWorkers: 2,
     fileParallelism: false,
+    maxConcurrency: 1,
     testTimeout: 90_000,
     hookTimeout: 90_000
   }

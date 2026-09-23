@@ -8,7 +8,7 @@ import { inject } from "vitest"
 
 const { postgresPort, integresqlPort, templateHash } = inject("postgres")
 const integresql = new IntegreSQLClient({ url: `http://127.0.0.1:${integresqlPort}/` })
-const controlUrl = `postgresql://postgres:postgres_test_password@127.0.0.1:${postgresPort}/postgres`
+const controlUrl = `postgresql://effect_resonate_test:effect_resonate_test_password@127.0.0.1:${postgresPort}/effect_resonate_test`
 
 const withClient = async <A>(url: string, use: (client: Client) => Promise<A>): Promise<A> => {
   const client = new Client({ connectionString: url })
@@ -69,7 +69,10 @@ export const withDatabase = async (run: (url: string) => Promise<void>): Promise
   const url = integresql.databaseConfigToConnectionUrl({
     ...lease.database.config, host: "127.0.0.1", port: postgresPort
   })
-  const jobName = `resonate_u7_${randomUUID()}`
+  // Each IntegreSQL clone needs the Resonate schema and its own timeout driver.
+  // The cron extension lives in the control database, so schedule its job into
+  // this clone before the scenario and remove it before returning the lease.
+  const jobName = `effect_resonate_${randomUUID()}`
   try {
     await verifyLease(url)
     await scheduleTimeouts(lease.database.config.database, jobName)

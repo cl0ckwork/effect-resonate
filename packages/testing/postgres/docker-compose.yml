@@ -7,15 +7,15 @@ services:
       - -c
       - shared_preload_libraries=pg_cron
       - -c
-      - cron.database_name=postgres
+      - cron.database_name=effect_resonate_test
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_test_password
+      POSTGRES_DB: effect_resonate_test
+      POSTGRES_USER: effect_resonate_test
+      POSTGRES_PASSWORD: effect_resonate_test_password
     ports:
       - "127.0.0.1::5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U effect_resonate_test -d effect_resonate_test"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -27,9 +27,9 @@ services:
         condition: service_healthy
     environment:
       INTEGRESQL_PGHOST: postgres
-      INTEGRESQL_PGUSER: postgres
-      INTEGRESQL_PGPASSWORD: postgres_test_password
-      INTEGRESQL_PGDATABASE: postgres
+      INTEGRESQL_PGUSER: effect_resonate_test
+      INTEGRESQL_PGPASSWORD: effect_resonate_test_password
+      INTEGRESQL_PGDATABASE: effect_resonate_test
       INTEGRESQL_PORT: "5000"
     ports:
       - "127.0.0.1::5000"

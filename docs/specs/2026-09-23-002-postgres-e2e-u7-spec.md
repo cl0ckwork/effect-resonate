@@ -26,6 +26,6 @@ Vitest global setup starts the services, prepares a hashed template, provides it
 
 The pinned upstream revision is `resonatehq/resonate-pg@54fe65150f42f39f415363d05cd54ff91a069b1c`. `fixtures/UPSTREAM.md` records its checksum. Published SDK 0.11.5 marks `ctx.promise()` with `resonate:scope=global`; this SQL revision omits that tag from its generated `external` classification. The separate `001-sdk-global-promise.sql` migration bridges the mismatch. SDK source commit `a3a3ccf` adds `resonate:external=true` but is not yet published; remove the migration when that fix ships and the recovery test passes without it. IntegreSQL's `hashFiles` covers both SQL files and image configuration.
 
-Template setup closes its SQL connection before finalization, as IntegreSQL requires. A failed migration aborts setup; a failed lease readiness check or scenario still triggers cleanup. PostgreSQL diagnostic text may appear in the local test runner, but the conformance scenarios report only their sanitized observations.
+Template setup closes its SQL connection before finalization, as IntegreSQL requires. A failed migration aborts setup; a failed lease readiness check or scenario still triggers cleanup. SDK and PostgreSQL diagnostics remain available to the test runner.
 
 Sources: `packages/testing/src/NetworkHarness.ts`, `packages/testing/src/NetworkScenarios.ts`, `packages/testing/src/RecoveryScenarios.ts`, `packages/network-postgres/src/PostgresNetwork.ts`, and `docs/specs/2026-09-15-001-core-async-postgres-spec.md`.

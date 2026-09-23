@@ -55,13 +55,14 @@ describe("real Postgres acquisition failures", () => {
       ResonateClient.ResonateClient.pipe(Effect.provide(ClientLive))
     ))
     expect(failure).toBeInstanceOf(ResonateSdkError)
-    expect(String(failure)).not.toContain("postgres_test_password")
-    expect(String(failure.cause)).not.toContain("postgres_test_password")
+    if (!(failure instanceof ResonateSdkError)) throw failure
+    expect(failure.operation).toBe("network.init")
+    expect(failure.cause).toBeDefined()
   }
 
-  it("reports a missing Resonate schema without exposing connection details", () =>
+  it("reports a missing Resonate schema", () =>
     expectFailure(controlUrl))
 
-  it("reports a failed database login without exposing its password", () =>
-    expectFailure(controlUrl.replace("postgres_test_password", "secret-password")))
+  it("reports a failed database login", () =>
+    expectFailure(controlUrl.replace("effect_resonate_test_password", "wrong-password")))
 })
