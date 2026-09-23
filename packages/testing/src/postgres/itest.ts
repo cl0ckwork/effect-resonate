@@ -4,10 +4,8 @@ import { makePostgresItestLayer, type PostgresItestOptions } from "./layers.js"
 
 type Services = Layer.Success<ReturnType<typeof makePostgresItestLayer>>
 
-export const itest = <A, E>(options: PostgresItestOptions & {
-  readonly name: string
-  readonly run: () => Effect.Effect<A, E, Services | Scope.Scope>
-}): void => {
-  const { name, run, ...layerOptions } = options
-  effectIt.live(name, () => run().pipe(Effect.provide(Layer.fresh(makePostgresItestLayer(layerOptions)))))
-}
+export const itest = <A, E>(
+  name: string,
+  test: () => Effect.Effect<A, E, Services | Scope.Scope>,
+  options: PostgresItestOptions = {}
+): void => effectIt.live(name, () => test().pipe(Effect.provide(Layer.fresh(makePostgresItestLayer(options)))))

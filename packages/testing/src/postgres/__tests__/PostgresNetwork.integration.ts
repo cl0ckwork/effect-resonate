@@ -11,38 +11,22 @@ import { itest } from "../itest.js"
 import { controlDatabaseUrl } from "../layers.js"
 
 describe("PostgresNetwork with the U5 conformance scenarios", () => {
-  itest({
-    name: "completes a registered workflow containing an Effect step",
-    run: () => NetworkScenarios.completion
-  })
-  itest({
-    name: "preserves first-writer-wins under duplicate activation",
-    run: () => NetworkScenarios.duplicateActivation
-  })
-  itest({
-    name: "keeps checked failures, defects, and malformed input distinct",
-    run: () => NetworkScenarios.failureClassification
-  })
-  itest({
-    name: "keeps durable execution alive after local cancellation",
-    run: () => NetworkScenarios.cancellation
-  })
-  itest({
-    name: "prevents late resolution from replacing a durable timeout",
-    run: () => NetworkScenarios.timeout
-  })
-  itest({
-    name: "supports repeated worker stop and restart",
-    run: () => NetworkScenarios.lifecycle
-  })
-  itest({
-    name: "rejects durable operations after an ordinary await",
-    run: () => NetworkScenarios.invalidNonDurableAwait
-  })
-  itest({
-    name: "reuses a checkpointed child after worker replacement",
-    run: () => RecoveryScenarios.replayRecovery
-  })
+  itest("completes a registered workflow containing an Effect step", () =>
+    NetworkScenarios.completion)
+  itest("preserves first-writer-wins under duplicate activation", () =>
+    NetworkScenarios.duplicateActivation)
+  itest("keeps checked failures, defects, and malformed input distinct", () =>
+    NetworkScenarios.failureClassification)
+  itest("keeps durable execution alive after local cancellation", () =>
+    NetworkScenarios.cancellation)
+  itest("prevents late resolution from replacing a durable timeout", () =>
+    NetworkScenarios.timeout)
+  itest("supports repeated worker stop and restart", () =>
+    NetworkScenarios.lifecycle)
+  itest("rejects durable operations after an ordinary await", () =>
+    NetworkScenarios.invalidNonDurableAwait)
+  itest("reuses a checkpointed child after worker replacement", () =>
+    RecoveryScenarios.replayRecovery)
 })
 
 const expectFailure = ({ connectionString }: { readonly connectionString: string }) => Effect.gen(function*() {
