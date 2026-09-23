@@ -8,7 +8,7 @@ import * as NetworkScenarios from "../../NetworkScenarios.js"
 import * as RecoveryScenarios from "../../RecoveryScenarios.js"
 import { testEnv } from "../env.js"
 import { itest } from "../itest.js"
-import { controlDatabaseUrl } from "../layers.js"
+import { controlDatabaseUrl } from "../PostgresItestLayer.js"
 
 describe("PostgresNetwork with the U5 conformance scenarios", () => {
   itest("completes a registered workflow containing an Effect step", () =>

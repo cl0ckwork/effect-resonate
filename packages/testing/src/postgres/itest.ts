@@ -1,6 +1,6 @@
 import { it as effectIt } from "@effect/vitest"
 import { Effect, Layer, type Scope } from "effect"
-import { makePostgresItestLayer, type PostgresItestOptions } from "./layers.js"
+import { makePostgresItestLayer, type PostgresItestOptions } from "./PostgresItestLayer.js"
 
 type Services = Layer.Success<ReturnType<typeof makePostgresItestLayer>>
 

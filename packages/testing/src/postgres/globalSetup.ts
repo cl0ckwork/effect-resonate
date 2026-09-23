@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { Effect, Schema } from "effect"
+import { Config, Effect, Schema } from "effect"
 import { Client } from "pg"
 import type { TestProject } from "vitest/node"
 import { createIntegresqlClient, dbConfigToHostUrl, hashMigrations } from "./integresql.js"
@@ -23,7 +23,7 @@ const compose = (options: { readonly projectName: string; readonly command: Read
   { encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] }
 ))
 
-const port = (options: {
+const publishedPort = (options: {
   readonly projectName: string
   readonly service: string
   readonly containerPort: number
@@ -35,9 +35,12 @@ const port = (options: {
   return yield* Schema.decodeUnknownEffect(Port)(/:(\d+)$/.exec(address.trim())?.[1])
 })
 
-const migrate = ({ connectionString }: { readonly connectionString: string }) => Effect.scoped(Effect.gen(function*() {
+const migrate = (options: {
+  readonly connectionString: string
+  readonly expectedSchemaVersion: string
+}) => Effect.scoped(Effect.gen(function*() {
   const client = yield* Effect.acquireRelease(
-    Effect.sync(() => new Client({ connectionString })),
+    Effect.sync(() => new Client({ connectionString: options.connectionString })),
     (client) => Effect.promise(() => client.end())
   )
   yield* Effect.promise(() => client.connect())
@@ -48,8 +51,8 @@ const migrate = ({ connectionString }: { readonly connectionString: string }) =>
   const check = yield* Effect.promise(() => client.query<{ version: string | null }>(
     "SELECT resonate.get_schema_version() AS version"
   ))
-  if (check.rows[0]?.version !== "0.1.0") {
-    return yield* Effect.fail(new Error("Resonate SQL migration did not apply"))
+  if (check.rows[0]?.version !== options.expectedSchemaVersion) {
+    return yield* Effect.fail(new Error("Resonate SQL schema version does not match POSTGRES_TEST_SCHEMA_VERSION"))
   }
 }))
 
@@ -58,14 +61,20 @@ const setupEffect = ({ project }: { readonly project: TestProject }) => Effect.g
   const teardown = compose({ projectName, command: ["down", "-v", "--remove-orphans"] })
   yield* Effect.gen(function*() {
     yield* compose({ projectName, command: ["up", "-d", "--build", "--wait"] })
-    const postgresPort = yield* port({ projectName, service: "postgres", containerPort: 5432 })
-    const integresqlPort = yield* port({ projectName, service: "integresql", containerPort: 5000 })
+    const postgresPort = yield* publishedPort({ projectName, service: "postgres", containerPort: 5432 })
+    const integresqlPort = yield* publishedPort({ projectName, service: "integresql", containerPort: 5000 })
+    const expectedSchemaVersion = yield* Config.String("POSTGRES_TEST_SCHEMA_VERSION").pipe(
+      Config.withDefault("0.1.0")
+    )
     const integresql = createIntegresqlClient({ url: `http://127.0.0.1:${integresqlPort}/` })
     const templateHash = yield* Effect.promise(() => hashMigrations({ client: integresql }))
     yield* Effect.promise(() => integresql.initializeTemplate(
       templateHash,
       (database) => Effect.runPromise(
-        migrate({ connectionString: dbConfigToHostUrl({ client: integresql, config: database, postgresPort }) })
+        migrate({
+          connectionString: dbConfigToHostUrl({ client: integresql, config: database, postgresPort }),
+          expectedSchemaVersion
+        })
       )
     ))
     yield* Effect.sync(() => project.provide("postgres", { postgresPort, integresqlPort, templateHash }))
