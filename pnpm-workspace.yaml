@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "examples/*"
+  - "apps/*"
 allowBuilds:
   # Lefthook's install script selects its platform binary and wires Git hooks.
   lefthook: true
