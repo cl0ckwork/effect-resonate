@@ -1,4 +1,4 @@
-import { describe, expect, inject, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 import { ResonateSdkError } from "@effect-resonate/core/CoreExecutionError"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
@@ -13,13 +13,10 @@ import {
   timeout
 } from "../../../src/index.js"
 import { Effect, Layer } from "effect"
-import { createHarness } from "../harness.js"
-
-const { templateHash, ...ports } = inject("postgres")
-const { controlUrl, scenarioLayer, withDatabase } = createHarness(ports)
+import { controlUrl, scenarioLayer, withDatabase } from "../harness.js"
 
 const run = (scenario: typeof completion) =>
-  withDatabase(templateHash, (url) => Effect.runPromise(
+  withDatabase((url) => Effect.runPromise(
     scenario.pipe(Effect.provide(scenarioLayer(url)))
   ))
 

@@ -1,16 +1,19 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
+import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
+import { IntegreSQLClient } from "@devoxa/integresql-client"
+import { Client } from "pg"
 import type { TestProject } from "vitest/node"
-import { createHarness, type PostgresTestContext } from "./src/harness.js"
 
 declare module "vitest" {
   interface ProvidedContext {
-    postgres: PostgresTestContext
+    postgres: { postgresPort: number; integresqlPort: number; templateHash: string }
   }
 }
 
 const composeFile = fileURLToPath(new URL("./compose.yaml", import.meta.url))
+const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))
 
 export const setup = async (project: TestProject) => {
   const name = `effect-resonate-u7-${randomUUID().slice(0, 8)}`
@@ -29,7 +32,27 @@ export const setup = async (project: TestProject) => {
     compose("up", "-d", "--build", "--wait")
     const postgresPort = port("postgres", 5432)
     const integresqlPort = port("integresql", 5000)
-    const templateHash = await createHarness({ postgresPort, integresqlPort }).initializeTemplate()
+    const integresql = new IntegreSQLClient({ url: `http://127.0.0.1:${integresqlPort}/` })
+    const templateHash = await integresql.hashFiles([
+      "postgres/fixtures/**/*", "postgres/docker/**/*", "postgres/compose.yaml"
+    ])
+    await integresql.initializeTemplate(templateHash, async (database) => {
+      const connectionString = integresql.databaseConfigToConnectionUrl({
+        ...database, host: "127.0.0.1", port: postgresPort
+      })
+      const client = new Client({ connectionString })
+      await client.connect()
+      try {
+        await client.query(await readFile(fixture("resonate.sql"), "utf8"))
+        await client.query(await readFile(fixture("001-sdk-global-promise.sql"), "utf8"))
+        const check = await client.query<{ version: string | null }>(
+          "SELECT resonate.get_schema_version() AS version"
+        )
+        if (check.rows[0]?.version !== "0.1.0") throw new Error("Resonate SQL migration did not apply")
+      } finally {
+        await client.end()
+      }
+    })
     project.provide("postgres", { postgresPort, integresqlPort, templateHash })
   } catch (error) {
     compose("down", "-v", "--remove-orphans")
