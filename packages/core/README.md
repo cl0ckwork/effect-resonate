@@ -54,13 +54,13 @@ import { Config, Effect, Layer, Redacted } from "effect"
 const NetworkLive = Layer.unwrap(
   Config.Redacted("DATABASE_URL").pipe(
     Effect.map((url) =>
-      ResonateNetwork.layer(
-        () =>
+      ResonateNetwork.layer({
+        make: () =>
           new PostgresNetwork({
             connectionString: Redacted.value(url),
             group: "workers"
           })
-      )
+      })
     )
   )
 )
@@ -70,7 +70,7 @@ const ClientLive = ResonateClient.layer({ drainTimeout: "30 seconds" }).pipe(
 )
 ```
 
-The factory constructs a fresh SDK network for each client acquisition. Core
+The `make` callback constructs a fresh SDK network for each client acquisition. Core
 owns initialization, readiness, and shutdown, including cleanup after partial
 acquisition. The SDK owns its PostgreSQL configuration, errors, diagnostics,
 logging, and retry behavior.

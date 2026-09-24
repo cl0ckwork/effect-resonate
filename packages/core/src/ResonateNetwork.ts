@@ -7,18 +7,23 @@ export interface ResonateNetworkService {
   readonly make: Effect.Effect<Network, ResonateSdkError>
 }
 
-/** Provider-neutral network factory consumed by `ResonateClient.layer`. */
+/** Provider-neutral network service consumed by `ResonateClient.layer`. */
 export class ResonateNetwork extends Context.Service<ResonateNetwork, ResonateNetworkService>()(
   "@effect-resonate/core/ResonateNetwork"
 ) {}
 
+export interface LayerOptions {
+  /** Constructs an uninitialized SDK network when a client is acquired. */
+  readonly make: () => Network
+}
+
 /** Creates a fresh SDK network for each client acquisition. */
-export const layer = (factory: () => Network): Layer.Layer<ResonateNetwork> =>
+export const layer = ({ make }: LayerOptions): Layer.Layer<ResonateNetwork> =>
   Layer.succeed(
     ResonateNetwork,
     ResonateNetwork.of({
       make: Effect.try({
-        try: factory,
+        try: make,
         catch: (cause) =>
           new ResonateSdkError({
             operation: "network.init",

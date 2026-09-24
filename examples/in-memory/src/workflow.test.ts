@@ -6,7 +6,7 @@ import { Functions, NormalizeNameLive, Welcome, WelcomeLive } from "./workflow.j
 
 it("runs a typed workflow and reuses the first result for the same execution ID", async () => {
   // Each test gets an isolated in-memory Resonate network. No server or database is needed.
-  const NetworkLive = ResonateNetwork.layer(() => new LocalNetwork())
+  const NetworkLive = ResonateNetwork.layer({ make: () => new LocalNetwork() })
   const ClientLive = ResonateClient.layer({
     functions: Functions,
     drainTimeout: Duration.seconds(1)

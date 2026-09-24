@@ -106,7 +106,9 @@ export const makePostgresItestLayer = (options: PostgresItestOptions = {}) =>
     Effect.gen(function* () {
       const connectionString = yield* testDatabase
       return Layer.merge(
-        ResonateNetwork.layer(() => new PostgresNetwork({ connectionString, ...options.network })),
+        ResonateNetwork.layer({
+          make: () => new PostgresNetwork({ connectionString, ...options.network })
+        }),
         makeNetworkHarnessLayer({
           name: "sdk-postgres",
           setupTimeout: options.setupTimeout ?? "10 seconds",

@@ -63,7 +63,9 @@ const TextV2Live = TextV2.toLayer(async (context, input) => context.run(Normaliz
 const NetworkLive = Layer.unwrap(
   Config.Redacted("DATABASE_URL").pipe(
     Effect.map((url) =>
-      ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: Redacted.value(url) }))
+      ResonateNetwork.layer({
+        make: () => new PostgresNetwork({ connectionString: Redacted.value(url) })
+      })
     )
   )
 )

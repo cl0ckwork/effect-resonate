@@ -42,7 +42,11 @@ describe("PostgresNetwork with the U5 conformance scenarios", () => {
 const expectFailure = ({ connectionString }: { readonly connectionString: string }) =>
   Effect.gen(function* () {
     const ClientLive = ResonateClient.layer({ drainTimeout: "1 second" }).pipe(
-      Layer.provide(ResonateNetwork.layer(() => new PostgresNetwork({ connectionString })))
+      Layer.provide(
+        ResonateNetwork.layer({
+          make: () => new PostgresNetwork({ connectionString })
+        })
+      )
     )
     const failure = yield* Effect.flip(
       ResonateClient.ResonateClient.pipe(Effect.provide(ClientLive))

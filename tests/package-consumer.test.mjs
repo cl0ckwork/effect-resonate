@@ -141,7 +141,7 @@ void [
   assert.equal(packedManifest.dependencies?.["@effect-resonate/testing"], undefined)
 })
 
-test("the packed core network factory composes with the SDK Postgres network", (context) => {
+test("the packed core network make callback composes with the SDK Postgres network", (context) => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "effect-resonate-postgres-consumer-"))
   context.after(() => rmSync(fixtureRoot, { recursive: true, force: true }))
 
@@ -200,7 +200,7 @@ import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"
 import { Layer } from "effect"
 
-const network = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: "postgres://localhost/resonate" }))
+const network = ResonateNetwork.layer({ make: () => new PostgresNetwork({ connectionString: "postgres://localhost/resonate" }) })
 const client = ResonateClient.layer({ drainTimeout: "1 second" }).pipe(Layer.provide(network))
 void client
 `
@@ -215,7 +215,7 @@ void client
     [
       "--input-type=module",
       "-e",
-      "const [{ PostgresNetwork }, ResonateNetwork, { Effect }] = await Promise.all([import('@resonatehq/sdk/postgres'), import('@effect-resonate/core/ResonateNetwork'), import('effect')]); const live = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: 'postgres://localhost/resonate' })); await Effect.runPromise(ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live)))"
+      "const [{ PostgresNetwork }, ResonateNetwork, { Effect }] = await Promise.all([import('@resonatehq/sdk/postgres'), import('@effect-resonate/core/ResonateNetwork'), import('effect')]); const live = ResonateNetwork.layer({ make: () => new PostgresNetwork({ connectionString: 'postgres://localhost/resonate' }) }); await Effect.runPromise(ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live)))"
     ],
     {
       cwd: fixtureRoot,

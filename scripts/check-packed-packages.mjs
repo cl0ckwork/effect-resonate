@@ -98,7 +98,7 @@ try {
       'import { PostgresNetwork } from "@resonatehq/sdk/postgres"',
       'import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"',
       'import { Effect } from "effect"',
-      'const live = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: "postgres://localhost/resonate" }))',
+      'const live = ResonateNetwork.layer({ make: () => new PostgresNetwork({ connectionString: "postgres://localhost/resonate" }) })',
       "const network = ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live))",
       "void network",
       ""
@@ -128,7 +128,7 @@ try {
     [
       "--input-type=module",
       "-e",
-      "const [{ PostgresNetwork }, ResonateNetwork, { Effect }] = await Promise.all([import('@resonatehq/sdk/postgres'), import('@effect-resonate/core/ResonateNetwork'), import('effect')]); const live = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: 'postgres://localhost/resonate' })); await Effect.runPromise(ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live)))"
+      "const [{ PostgresNetwork }, ResonateNetwork, { Effect }] = await Promise.all([import('@resonatehq/sdk/postgres'), import('@effect-resonate/core/ResonateNetwork'), import('effect')]); const live = ResonateNetwork.layer({ make: () => new PostgresNetwork({ connectionString: 'postgres://localhost/resonate' }) }); await Effect.runPromise(ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live)))"
     ],
     { cwd: consumer, stdio: "inherit" }
   )
