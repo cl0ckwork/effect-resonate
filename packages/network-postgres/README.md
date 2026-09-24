@@ -1,7 +1,6 @@
 # @effect-resonate/network-postgres
 
-Effect Layer for the official Resonate SDK `PostgresNetwork`. After the first
-npm release, install it with
+Effect Layer for the official Resonate SDK `PostgresNetwork`. Install it with
 core, Effect, the Resonate SDK, and the PostgreSQL driver:
 
 ```sh

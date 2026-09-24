@@ -1,8 +1,7 @@
 # Packaging and repository topology
 
-Status: current package boundaries, build model, and release workflow are
-implemented. The first npm publication and npm-side trusted publisher setup
-remain; see [RELEASING.md](./RELEASING.md).
+This document describes the package boundaries, build model, and release
+workflow. See [RELEASING.md](./RELEASING.md) for maintainer setup.
 
 ## Package boundaries
 
@@ -63,8 +62,8 @@ Changesets records version and changelog intent for the two public packages.
 The release workflow opens a version PR from Changesets, then validates and
 stages missing versions from a separate GitHub OIDC job. Staging uses the npm
 CLI directly; a maintainer approves each version with 2FA before it becomes
-public. The private testing package is never staged. Because the public
-package names are not yet present on npm, automated staging is guarded until
-both have been bootstrapped and configured with stage-only trusted publishers.
+public. The private testing package is never staged. Automated staging waits
+until both package names exist on npm and have stage-only trusted publishers
+configured.
 Follow [RELEASING.md](./RELEASING.md) for that owner-run setup and the normal
 release sequence.

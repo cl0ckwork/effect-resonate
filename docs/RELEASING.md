@@ -7,21 +7,21 @@ the packages and stages later versions with npm trusted publishing. A maintainer
 approves each staged version with npm two-factor authentication before it is
 public.
 
-## Before the first release
+## Bootstrap npm package names
 
-Both package names are currently absent from the public npm registry. npm
-trusted publishers and staged publishing require an existing package, so the
-npm scope owner must bootstrap each package before automated OIDC staging can
-work. Prepare the first version and review both packed artifacts in a release
-PR. From an authenticated maintainer environment, publish core
-first and the Postgres provider second at the reviewed versions. Publishing is
-irreversible; do not run this step as part of a PR check.
+If either package name does not exist on npm, its scope owner must publish it
+before automated OIDC staging can work: npm trusted publishers and staged
+publishing require an existing package. Prepare the bootstrap version and
+review both packed artifacts in a release PR. From an authenticated maintainer
+environment, publish core first and the Postgres provider second at the reviewed
+versions. Publishing is irreversible; do not run this step as part of a PR check.
 The manual bootstrap does not receive OIDC provenance; later staged releases
 do.
 
 After the reviewed version PR has merged, verify neither manifest still has
 `0.0.0` and that the provider's `@effect-resonate/core` peer range matches the
-core version. Then run:
+core version. Run the applicable publish commands in order, skipping a package
+version that is already live on npm:
 
 ```sh
 pnpm install --frozen-lockfile

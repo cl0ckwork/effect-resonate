@@ -28,9 +28,9 @@ The intended split is:
 
 ## Install
 
-After the first npm release, install core with Effect and the Resonate SDK. A
-network provider is also required to acquire a client; for PostgreSQL, install
-`@effect-resonate/network-postgres` and `pg` and follow its
+Install core with Effect and the Resonate SDK. A network provider is required
+to acquire a client. For PostgreSQL, install `@effect-resonate/network-postgres`
+and `pg`, then follow its
 [setup guide](../network-postgres/README.md).
 
 ```sh
