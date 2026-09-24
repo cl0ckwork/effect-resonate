@@ -21,14 +21,22 @@ test("the packed core artifact typechecks from root and subpath imports", (conte
   })
   const [{ filename }] = JSON.parse(packOutput)
   assert.equal(typeof filename, "string")
-  const packedEntries = execFileSync("tar", ["-tzf", join(fixtureRoot, filename)], { encoding: "utf8" })
+  const packedEntries = execFileSync("tar", ["-tzf", join(fixtureRoot, filename)], {
+    encoding: "utf8"
+  })
   assert.doesNotMatch(packedEntries, /__tests__|\.types\.js|postgres|testing/i)
   assert.match(packedEntries, /package\/LICENSE\n/)
 
   const nodeModules = join(fixtureRoot, "node_modules")
   const packedCore = join(nodeModules, "@effect-resonate", "core")
   mkdirSync(packedCore, { recursive: true })
-  execFileSync("tar", ["-xzf", join(fixtureRoot, filename), "-C", packedCore, "--strip-components=1"])
+  execFileSync("tar", [
+    "-xzf",
+    join(fixtureRoot, filename),
+    "-C",
+    packedCore,
+    "--strip-components=1"
+  ])
 
   symlinkSync(join(coreRoot, "node_modules", "effect"), join(nodeModules, "effect"), "dir")
   mkdirSync(join(nodeModules, "@resonatehq"), { recursive: true })
@@ -39,21 +47,26 @@ test("the packed core artifact typechecks from root and subpath imports", (conte
   )
 
   writeFileSync(join(fixtureRoot, "package.json"), JSON.stringify({ type: "module" }))
-  writeFileSync(join(fixtureRoot, "tsconfig.json"), JSON.stringify({
-    compilerOptions: {
-      target: "ES2022",
-      lib: ["ESNext", "DOM", "DOM.Iterable"],
-      module: "NodeNext",
-      moduleResolution: "NodeNext",
-      strict: true,
-      exactOptionalPropertyTypes: true,
-      noEmit: true,
-      skipLibCheck: true,
-      verbatimModuleSyntax: true
-    },
-    files: ["consumer.ts"]
-  }))
-  writeFileSync(join(fixtureRoot, "consumer.ts"), `
+  writeFileSync(
+    join(fixtureRoot, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["ESNext", "DOM", "DOM.Iterable"],
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        noEmit: true,
+        skipLibCheck: true,
+        verbatimModuleSyntax: true
+      },
+      files: ["consumer.ts"]
+    })
+  )
+  writeFileSync(
+    join(fixtureRoot, "consumer.ts"),
+    `
 import type { Context as SdkContext } from "@resonatehq/sdk/async"
 import { Effect, Schema } from "effect"
 import { ResonateClient, ResonateFunctions, Step, Workflow } from "@effect-resonate/core"
@@ -109,7 +122,8 @@ void [
   StepContext,
   WorkflowModule
 ]
-`)
+`
+  )
 
   execFileSync(join(coreRoot, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.json"], {
     cwd: fixtureRoot,
@@ -159,25 +173,34 @@ test("the packed Postgres provider typechecks from root and subpath imports", (c
 
   symlinkSync(join(coreRoot, "node_modules", "effect"), join(nodeModules, "effect"), "dir")
   mkdirSync(join(nodeModules, "@resonatehq"), { recursive: true })
-  symlinkSync(join(coreRoot, "node_modules", "@resonatehq", "sdk"), join(nodeModules, "@resonatehq", "sdk"), "dir")
+  symlinkSync(
+    join(coreRoot, "node_modules", "@resonatehq", "sdk"),
+    join(nodeModules, "@resonatehq", "sdk"),
+    "dir"
+  )
   symlinkSync(join(postgresRoot, "node_modules", "pg"), join(nodeModules, "pg"), "dir")
 
   writeFileSync(join(fixtureRoot, "package.json"), JSON.stringify({ type: "module" }))
-  writeFileSync(join(fixtureRoot, "tsconfig.json"), JSON.stringify({
-    compilerOptions: {
-      target: "ES2022",
-      lib: ["ESNext", "DOM", "DOM.Iterable"],
-      module: "NodeNext",
-      moduleResolution: "NodeNext",
-      strict: true,
-      exactOptionalPropertyTypes: true,
-      noEmit: true,
-      skipLibCheck: true,
-      verbatimModuleSyntax: true
-    },
-    files: ["consumer.ts"]
-  }))
-  writeFileSync(join(fixtureRoot, "consumer.ts"), `
+  writeFileSync(
+    join(fixtureRoot, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["ESNext", "DOM", "DOM.Iterable"],
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        noEmit: true,
+        skipLibCheck: true,
+        verbatimModuleSyntax: true
+      },
+      files: ["consumer.ts"]
+    })
+  )
+  writeFileSync(
+    join(fixtureRoot, "consumer.ts"),
+    `
 import * as Postgres from "@effect-resonate/network-postgres"
 import { layer } from "@effect-resonate/network-postgres/PostgresNetwork"
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
@@ -187,16 +210,21 @@ const network = Postgres.layer({ connectionString: "postgres://localhost/resonat
 const client = ResonateClient.layer({ drainTimeout: "1 second" }).pipe(Layer.provide(network))
 const subpath = layer({ connectionString: "postgres://localhost/resonate", tickMs: 250 })
 void [client, subpath]
-`)
+`
+  )
 
   execFileSync(join(coreRoot, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.json"], {
     cwd: fixtureRoot,
     stdio: "inherit"
   })
-  execFileSync("node", ["--input-type=module", "-e", "await import('@effect-resonate/network-postgres')"], {
-    cwd: fixtureRoot,
-    stdio: "inherit"
-  })
+  execFileSync(
+    "node",
+    ["--input-type=module", "-e", "await import('@effect-resonate/network-postgres')"],
+    {
+      cwd: fixtureRoot,
+      stdio: "inherit"
+    }
+  )
 
   const coreManifest = JSON.parse(readFileSync(join(packedCore, "package.json"), "utf8"))
   const providerManifest = JSON.parse(readFileSync(join(packedPostgres, "package.json"), "utf8"))

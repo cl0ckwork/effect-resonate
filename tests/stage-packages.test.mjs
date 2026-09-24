@@ -1,6 +1,14 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { chmodSync, copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  copyFileSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -15,7 +23,10 @@ const fixture = (context, version = "0.1.0") => {
   const bin = join(root, "bin")
   mkdirSync(scripts)
   mkdirSync(bin)
-  copyFileSync(join(projectRoot, "scripts", "stage-packages.mjs"), join(scripts, "stage-packages.mjs"))
+  copyFileSync(
+    join(projectRoot, "scripts", "stage-packages.mjs"),
+    join(scripts, "stage-packages.mjs")
+  )
   for (const [directory, name] of [
     ["core", "@effect-resonate/core"],
     ["network-postgres", "@effect-resonate/network-postgres"]
@@ -29,7 +40,9 @@ const fixture = (context, version = "0.1.0") => {
   writeFileSync(calls, "")
   writeFileSync(summary, "")
   const npm = join(bin, "npm")
-  writeFileSync(npm, `#!/usr/bin/env node
+  writeFileSync(
+    npm,
+    `#!/usr/bin/env node
 import { appendFileSync } from "node:fs"
 const args = process.argv.slice(2)
 appendFileSync(process.env.CALL_LOG, JSON.stringify(args) + "\\n")
@@ -58,7 +71,8 @@ if (args[0] === "stage" && process.env.SCENARIO === "stage-failure") {
   process.exit(1)
 }
 if (args[0] === "stage") process.stdout.write("staged\\n")
-`)
+`
+  )
   chmodSync(npm, 0o755)
 
   return (scenario) => {
@@ -72,7 +86,10 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
         SCENARIO: scenario
       }
     })
-    const invoked = readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line))
+    const invoked = readFileSync(calls, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
     return { ...result, invoked, summary: readFileSync(summary, "utf8") }
   }
 }
@@ -80,20 +97,29 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
 test("staging waits until both public packages exist", (context) => {
   const result = fixture(context)("missing-package")
   assert.equal(result.status, 0)
-  assert.equal(result.invoked.some(([command]) => command === "stage"), false)
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
   assert.match(result.stdout, /Skipping automated staging/)
 })
 
 test("staging skips versions already live on npm", (context) => {
   const result = fixture(context)("already-live")
   assert.equal(result.status, 0)
-  assert.equal(result.invoked.some(([command]) => command === "stage"), false)
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
 })
 
 test("staging skips the unreleased version sentinel", (context) => {
   const result = fixture(context, "0.0.0")("new-version")
   assert.equal(result.status, 0)
-  assert.equal(result.invoked.some(([command]) => command === "stage"), false)
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
 })
 
 test("staging records pending approval and tolerates an existing stage", (context) => {
@@ -118,6 +144,9 @@ test("unexpected npm staging failures stop the release", (context) => {
 test("registry lookup failures stop the release", (context) => {
   const result = fixture(context)("registry-error")
   assert.notEqual(result.status, 0)
-  assert.equal(result.invoked.some(([command]) => command === "stage"), false)
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
   assert.match(result.stderr, /E500/)
 })

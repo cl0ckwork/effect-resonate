@@ -67,8 +67,8 @@ After a caller loses its connection or cancels a wait, look up the existing
 execution by its original ID and definition rather than inventing a new ID:
 
 ```ts
-const handle = yield* ResonateClient.get("checkout-123", Checkout)
-const result = yield* handle.result()
+const handle = yield * ResonateClient.get("checkout-123", Checkout)
+const result = yield * handle.result()
 ```
 
 `get` is an input-free lookup and does not create an execution. A failed
@@ -122,23 +122,12 @@ the provider network remain ordinary Layer dependencies rather than values
 inside client configuration.
 
 ```ts
-const CheckoutFunctions = ResonateFunctions.make(
-  ChargeCardV1,
-  ChargeCardV2,
-  Checkout
-)
+const CheckoutFunctions = ResonateFunctions.make(ChargeCardV1, ChargeCardV2, Checkout)
 
 const ResonateLive = ResonateClient.layer({
   functions: CheckoutFunctions,
   drainTimeout: Duration.seconds(30)
-}).pipe(
-  Layer.provide([
-    ChargeCardV1Live,
-    ChargeCardV2Live,
-    CheckoutLive,
-    ResonateNetworkLive
-  ])
-)
+}).pipe(Layer.provide([ChargeCardV1Live, ChargeCardV2Live, CheckoutLive, ResonateNetworkLive]))
 ```
 
 `ResonateClient.layer` validates the complete registry before opening the
@@ -154,12 +143,8 @@ Application code uses module-level accessors. They retrieve the real
 the environment channel:
 
 ```ts
-const checkout = Effect.gen(function*() {
-  const handle = yield* ResonateClient.run(
-    "checkout-123",
-    Checkout,
-    { orderId: "order-123" }
-  )
+const checkout = Effect.gen(function* () {
+  const handle = yield* ResonateClient.run("checkout-123", Checkout, { orderId: "order-123" })
 
   return yield* handle.result()
 }).pipe(Effect.provide(ResonateLive))
@@ -169,7 +154,7 @@ Raw SDK-style registration and invocation remain available with the same names
 and positional argument order:
 
 ```ts
-const raw = Effect.gen(function*() {
+const raw = Effect.gen(function* () {
   const greet = yield* ResonateClient.register(
     "greet",
     async (_ctx, name: string) => `hello ${name}`

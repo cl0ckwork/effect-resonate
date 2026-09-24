@@ -10,23 +10,23 @@ owner. Later versions are staged with OIDC and approved with npm 2FA.
 
 ## Requirements trace
 
-| ID | Source | Outcome |
-| --- | --- | --- |
-| R1 | U8 plan, user request | README and package docs describe the implemented API and operational contract; plans retain historical decisions. |
-| R2 | U8 plan SC10 | Core and Postgres provider pack independently; core has no `pg` dependency; testing stays private. |
-| R3 | `docs/PACKAGING.md` | CI checks build, types, tests, packed consumers, and package metadata. |
-| R4 | `docs/RELEASE-BRAINSTORM.md` | Changesets prepares version PRs and npm stages via GitHub OIDC, without a persistent npm publish token. |
+| ID  | Source                       | Outcome                                                                                                           |
+| --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| R1  | U8 plan, user request        | README and package docs describe the implemented API and operational contract; plans retain historical decisions. |
+| R2  | U8 plan SC10                 | Core and Postgres provider pack independently; core has no `pg` dependency; testing stays private.                |
+| R3  | `docs/PACKAGING.md`          | CI checks build, types, tests, packed consumers, and package metadata.                                            |
+| R4  | `docs/RELEASE-BRAINSTORM.md` | Changesets prepares version PRs and npm stages via GitHub OIDC, without a persistent npm publish token.           |
 
 ## Walkthroughs and invariants
 
 The durable execution walkthroughs and invariants remain in the core spec;
 this work does not change execution semantics. Release-specific cases:
 
-| Case | Path | Expected result |
-| --- | --- | --- |
-| Consumer installs core alone | pack → install peers → import and typecheck | No `pg` resolution or testing files are required. |
-| Consumer installs the provider | pack both → install peers → import and typecheck | Public root and subpath exports resolve to built JS and declarations. |
-| Release PR merges | validate → version → stage → approve | Only public packages with new versions are staged; an unsuccessful gate cannot stage, and no staged version becomes public without 2FA approval. |
+| Case                           | Path                                             | Expected result                                                                                                                                  |
+| ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Consumer installs core alone   | pack → install peers → import and typecheck      | No `pg` resolution or testing files are required.                                                                                                |
+| Consumer installs the provider | pack both → install peers → import and typecheck | Public root and subpath exports resolve to built JS and declarations.                                                                            |
+| Release PR merges              | validate → version → stage → approve             | Only public packages with new versions are staged; an unsuccessful gate cannot stage, and no staged version becomes public without 2FA approval. |
 
 Safety: a publish never includes source tests or the private testing package.
 Consistency: provider's core peer range matches the released core version.

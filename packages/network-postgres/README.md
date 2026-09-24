@@ -16,10 +16,12 @@ import * as PostgresNetwork from "@effect-resonate/network-postgres"
 import { Layer } from "effect"
 
 const ClientLive = ResonateClient.layer({ drainTimeout: "30 seconds" }).pipe(
-  Layer.provide(PostgresNetwork.layer({
-    connectionString: process.env.DATABASE_URL ?? "",
-    group: "workers"
-  }))
+  Layer.provide(
+    PostgresNetwork.layer({
+      connectionString: process.env.DATABASE_URL ?? "",
+      group: "workers"
+    })
+  )
 )
 ```
 
