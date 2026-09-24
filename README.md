@@ -23,14 +23,14 @@ If you supply another network provider, install `@effect-resonate/core`,
 
 ## Quick start
 
-This example registers a durable workflow that calls an Effect step. The
-[PostgreSQL example](./examples/postgres/README.md) prepares the database used
-by this connection string.
+This example registers a durable workflow that calls an Effect step. Set
+`DATABASE_URL` to a prepared PostgreSQL database; the
+[PostgreSQL example](./examples/postgres/README.md) shows how to bootstrap one.
 
 ```ts
 import { ResonateClient, ResonateFunctions, Step, Workflow } from "@effect-resonate/core"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
-import { Effect, Layer, Schema } from "effect"
+import { Config, Effect, Layer, Redacted, Schema } from "effect"
 
 const Uppercase = Step.make({
   name: "text.uppercase",
@@ -48,21 +48,19 @@ const Echo = Workflow.make({
   failure: Schema.Never
 })
 
+const UppercaseLive = Uppercase.toLayer((input) => Effect.succeed(input.toUpperCase()))
+const EchoLive = Echo.toLayer(async (context, input) => context.run(Uppercase, input))
+
+const NetworkLive = Layer.unwrap(
+  Config.Redacted("DATABASE_URL").pipe(
+    Effect.map((url) => PostgresNetwork.layer({ connectionString: Redacted.value(url) }))
+  )
+)
+
 const ClientLive = ResonateClient.layer({
   functions: ResonateFunctions.make(Uppercase, Echo),
   drainTimeout: "30 seconds"
-}).pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      PostgresNetwork.layer({
-        connectionString:
-          "postgres://effect_resonate_example:effect_resonate_example_password@127.0.0.1:55432/effect_resonate_example"
-      }),
-      Uppercase.toLayer((input) => Effect.succeed(input.toUpperCase())),
-      Echo.toLayer(async (context, input) => context.run(Uppercase, input))
-    )
-  )
-)
+}).pipe(Layer.provide(Layer.mergeAll(NetworkLive, UppercaseLive, EchoLive)))
 
 const program = Effect.gen(function* () {
   const handle = yield* ResonateClient.run("echo-1", Echo, "hello")
@@ -105,13 +103,17 @@ remains the reference for orchestration and retry semantics.
 
 ## Contributing
 
-Install Node.js 22 or newer and [direnv](https://direnv.net/), then bootstrap a
-worktree:
+Install [mise](https://mise.jdx.dev/) and [direnv](https://direnv.net/), then
+bootstrap a worktree with the Node.js 24 version tracked in `mise.toml`:
 
 ```sh
+mise trust
+mise install
 direnv allow
 bash scripts/worktree-up
 ```
+
+The bootstrap installs the pnpm version pinned in `package.json`.
 
 Run the package checks and tests before opening a PR:
 

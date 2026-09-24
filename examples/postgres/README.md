@@ -28,15 +28,20 @@ The second SQL file is a compatibility migration for the pinned SDK. These
 files serve this local example; plan and version production migrations
 separately.
 
-If port 55432 is in use, change the host-side port in `compose.yaml` and set
-`DATABASE_URL` accordingly before running the app.
+If port 55432 is in use, change the host-side port in `compose.yaml` and use
+that port in `DATABASE_URL` below.
 
 ## 2. Run the workflows
 
 ```sh
 pnpm build
+export DATABASE_URL='postgres://effect_resonate_example:effect_resonate_example_password@127.0.0.1:55432/effect_resonate_example'
 pnpm start
 ```
+
+The app reads `DATABASE_URL` through Effect Config when it acquires the network
+Layer. The example credentials belong only to this local Compose database; set
+the variable from your application's secret store for other environments.
 
 Expected results are `v1: HELLO` and `v2: { value: 'GRÜSSE', length: 6 }`.
 Each run receives a new execution ID. Reusing an ID addresses the same durable

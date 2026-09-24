@@ -5,6 +5,17 @@ pre-commit:
   commands:
     staged-diff:
       run: git diff --cached --check
+    format:
+      run: pnpm exec prettier --check --ignore-unknown {staged_files}
+    lint:
+      glob:
+        - "*.ts"
+        - "**/*.ts"
+        - "*.js"
+        - "**/*.js"
+        - "*.mjs"
+        - "**/*.mjs"
+      run: pnpm lint
     typecheck:
       glob:
         - "*.ts"

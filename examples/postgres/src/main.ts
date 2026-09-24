@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { ResonateClient, ResonateFunctions, Step, Workflow } from "@effect-resonate/core"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
-import { Effect, Layer, Schema } from "effect"
+import { Config, Effect, Layer, Redacted, Schema } from "effect"
 
 // Keep v1 registered while any v1 executions may still be running or replaying.
 const NormalizeV1 = Step.make({
@@ -34,27 +34,43 @@ const TextV2 = Workflow.evolve(TextV1, {
   failure: Schema.Never
 })
 
+/**
+ * `toLayer` binds the V1 contract to its Effect implementation. Resonate runs
+ * this step and records its completed result for replay.
+ */
+const NormalizeV1Live = NormalizeV1.toLayer((text) => Effect.sync(() => text.trim().toUpperCase()))
+
+/**
+ * Workflow code uses Resonate's context for durable calls. `context.run`
+ * returns the step's Result, which becomes this workflow's Result.
+ */
+const TextV1Live = TextV1.toLayer(async (context, text) => context.run(NormalizeV1, text))
+
+/** V2 changes the step contract and implementation while V1 stays registered. */
+const NormalizeV2Live = NormalizeV2.toLayer(({ text, locale }) =>
+  Effect.sync(() => {
+    const value = text.trim().toLocaleUpperCase(locale)
+    return { value, length: value.length }
+  })
+)
+
+/** V2 calls its matching step version; retained V1 executions still call V1. */
+const TextV2Live = TextV2.toLayer(async (context, input) => context.run(NormalizeV2, input))
+
+// Load the database URL when the network Layer is acquired. Redacted keeps the
+// credential out of ordinary logging; the SDK receives the string at this boundary.
+const NetworkLive = Layer.unwrap(
+  Config.Redacted("DATABASE_URL").pipe(
+    Effect.map((url) => PostgresNetwork.layer({ connectionString: Redacted.value(url) }))
+  )
+)
+
 const ClientLive = ResonateClient.layer({
   functions: ResonateFunctions.make(NormalizeV1, NormalizeV2, TextV1, TextV2),
   drainTimeout: "30 seconds"
 }).pipe(
   Layer.provide(
-    Layer.mergeAll(
-      PostgresNetwork.layer({
-        connectionString:
-          process.env.DATABASE_URL ??
-          "postgres://effect_resonate_example:effect_resonate_example_password@127.0.0.1:55432/effect_resonate_example"
-      }),
-      NormalizeV1.toLayer((text) => Effect.succeed(text.trim().toUpperCase())),
-      TextV1.toLayer(async (context, text) => context.run(NormalizeV1, text)),
-      NormalizeV2.toLayer(({ text, locale }) =>
-        Effect.sync(() => {
-          const value = text.trim().toLocaleUpperCase(locale)
-          return { value, length: value.length }
-        })
-      ),
-      TextV2.toLayer(async (context, input) => context.run(NormalizeV2, input))
-    )
+    Layer.mergeAll(NetworkLive, NormalizeV1Live, TextV1Live, NormalizeV2Live, TextV2Live)
   )
 )
 
