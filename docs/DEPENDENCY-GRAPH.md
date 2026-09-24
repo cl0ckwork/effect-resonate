@@ -116,11 +116,13 @@ const make = Effect.gen(function* () {
   }))
 
   return {
+    register: ...,
     run: ...,
-    attach: ...,
-    resolvePromise: ...,
-    rejectPromise: ...,
-    cancelPromise: ...,
+    rpc: ...,
+    get: ...,
+    promises: { get: ..., create: ..., resolve: ..., reject: ..., cancel: ... },
+    schedules: { get: ..., create: ..., delete: ... },
+    stop: ...,
   }
 })
 
@@ -147,37 +149,33 @@ during partial acquisition before the Resonate instance takes ownership.
 Direct PostgreSQL execution should look like ordinary Layer composition:
 
 ```ts
-import { Config, Effect, Layer } from "effect"
+import { Config, Duration, Effect, Layer } from "effect"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 
-const PostgresResonate =
-  ResonateClient.layer.pipe(
-    Layer.provide(
-      PostgresNetwork.layer({
-        connectionString: Config.redacted("DATABASE_URL"),
-      }),
-    ),
-  )
+const PostgresResonate = ResonateClient.layer({
+  functions: CheckoutFunctions,
+  drainTimeout: Duration.seconds(30)
+}).pipe(Layer.provide([
+  CheckoutLive,
+  ChargeCardLive,
+  PostgresNetwork.layer({
+    connectionString: Config.redacted("DATABASE_URL")
+  })
+]))
 ```
 
 Application code depends only on the client service:
 
 ```ts
-const program = Effect.gen(function* () {
-  const resonate = yield* ResonateClient.ResonateClient
-
-  return yield* resonate.run(
-    Checkout,
-    "checkout-123",
-    input,
-  )
-})
-
-program.pipe(
-  Effect.provide(PostgresResonate),
-  Effect.runPromise,
+const program = Effect.gen(function*() {
+  const handle = yield* ResonateClient.run("checkout-123", Checkout, input)
+  return yield* handle.result()
+}).pipe(
+  Effect.provide(PostgresResonate)
 )
+
+Effect.runPromise(program)
 ```
 
 The workflow does not know or care that Postgres is the selected Resonate network.
@@ -190,7 +188,7 @@ Cloud / self-hosted server:
 
 ```ts
 const CloudResonate =
-  ResonateClient.layer.pipe(
+  ClientLive.pipe(
     Layer.provide(
       HttpNetwork.layer({
         url: Config.string("RESONATE_URL"),
@@ -203,7 +201,7 @@ Local development:
 
 ```ts
 const LocalResonate =
-  ResonateClient.layer.pipe(
+  ClientLive.pipe(
     Layer.provide(LocalNetwork.layer),
   )
 ```
@@ -239,7 +237,7 @@ would hide the actual dependency relationship and begin creating a second config
 The primitive API should instead expose the graph clearly:
 
 ```ts
-ResonateClient.layer.pipe(
+ClientLive.pipe(
   Layer.provide(PostgresNetwork.layer(...)),
 )
 ```
@@ -258,13 +256,14 @@ Convenience constructors can be considered later if real usage shows repeated bo
 
 ## Compile-time pressure is a feature
 
-If an application provides `ResonateClient.layer` without providing a network, the Effect should still retain a `ResonateNetwork` requirement.
+If an application constructs `ResonateClient.layer(...)` without providing a
+network, the Layer should still retain a `ResonateNetwork` requirement.
 
 Conceptually, this should not typecheck as a fully runnable program:
 
 ```ts
 program.pipe(
-  Effect.provide(ResonateClient.layer),
+  Effect.provide(ClientLive),
   Effect.runPromise,
 )
 ```
@@ -274,9 +273,11 @@ because the graph is incomplete.
 The user must complete it:
 
 ```ts
-const ResonateLive = ResonateClient.layer.pipe(
-  Layer.provide(PostgresNetwork.layer(...)),
-)
+const ResonateLive = ClientLive.pipe(Layer.provide([
+  CheckoutLive,
+  ChargeCardLive,
+  PostgresNetwork.layer(...)
+]))
 
 program.pipe(
   Effect.provide(ResonateLive),
@@ -298,14 +299,18 @@ A step may naturally require normal application services:
 const ChargeCard = Step.make({
   name: "payments.charge",
   version: 1,
-  execute: (input: ChargeInput) =>
+  input: ChargeInput,
+  success: ChargeReceipt,
+  failure: PaymentDeclined,
+})
+
+const ChargeCardLive = ChargeCard.toLayer((input) =>
     Effect.gen(function* () {
       const payments = yield* Payments
       const tracer = yield* Tracer
 
       return yield* payments.charge(input)
-    }),
-})
+    }))
 ```
 
 Its Effect already communicates its requirements:
@@ -314,7 +319,9 @@ Its Effect already communicates its requirements:
 Effect<ChargeReceipt, PaymentDeclined, Payments | Tracer>
 ```
 
-The worker runtime should execute that Effect using the application's supplied Layer graph.
+The step contract remains implementation-free. Its handler Layer communicates
+the Effect requirements, and the worker executes it using the application's
+supplied Layer graph.
 
 Do not introduce a separate service map such as:
 
@@ -352,7 +359,7 @@ Application Effect
       +-- HttpNetwork
       +-- PostgresNetwork
 
-Step Effect<A, E, R>
+Step contract --toLayer--> Effect<A, E, R> handler
       |
       | requires
       v

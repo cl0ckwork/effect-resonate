@@ -13,6 +13,8 @@
   "scripts": {
     "build": "zshy",
     "typecheck": "tsc --noEmit",
+    "test:types": "tsc -p tsconfig.types.json",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
@@ -20,15 +22,70 @@
     "effect": "4.0.0-rc.115"
   },
   "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.115",
     "@resonatehq/sdk": "^0.11.4",
     "effect": "4.0.0-rc.115",
     "typescript": "5.9.2",
+    "vitest": "5.0.1",
     "zshy": "^0.7.2"
   },
   "zshy": {
     "cjs": false,
     "exports": {
-      ".": "./src/index.ts"
+      ".": "./src/index.ts",
+      "./CoreExecutionError": "./src/CoreExecutionError.ts",
+      "./DurableValue": "./src/DurableValue.ts",
+      "./ResonateClient": "./src/ResonateClient.ts",
+      "./ResonateFunctions": "./src/ResonateFunctions.ts",
+      "./ResonateNetwork": "./src/ResonateNetwork.ts",
+      "./Step": "./src/Step.ts",
+      "./StepContext": "./src/StepContext.ts",
+      "./Workflow": "./src/Workflow.ts",
+      "./WorkflowContext": "./src/WorkflowContext.ts"
+    }
+  },
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./CoreExecutionError": {
+      "types": "./dist/CoreExecutionError.d.ts",
+      "default": "./dist/CoreExecutionError.js"
+    },
+    "./DurableValue": {
+      "types": "./dist/DurableValue.d.ts",
+      "default": "./dist/DurableValue.js"
+    },
+    "./ResonateClient": {
+      "types": "./dist/ResonateClient.d.ts",
+      "default": "./dist/ResonateClient.js"
+    },
+    "./ResonateFunctions": {
+      "types": "./dist/ResonateFunctions.d.ts",
+      "default": "./dist/ResonateFunctions.js"
+    },
+    "./ResonateNetwork": {
+      "types": "./dist/ResonateNetwork.d.ts",
+      "default": "./dist/ResonateNetwork.js"
+    },
+    "./Step": {
+      "types": "./dist/Step.d.ts",
+      "default": "./dist/Step.js"
+    },
+    "./StepContext": {
+      "types": "./dist/StepContext.d.ts",
+      "default": "./dist/StepContext.js"
+    },
+    "./Workflow": {
+      "types": "./dist/Workflow.d.ts",
+      "default": "./dist/Workflow.js"
+    },
+    "./WorkflowContext": {
+      "types": "./dist/WorkflowContext.d.ts",
+      "default": "./dist/WorkflowContext.js"
     }
   }
 }
