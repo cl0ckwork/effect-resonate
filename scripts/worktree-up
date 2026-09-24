@@ -13,7 +13,7 @@ lock=$(git rev-parse --git-path effect-resonate-bootstrap.lock)
 lock_owner="$(hostname):$$:$(date +%s)"
 waited=0
 while ! mkdir "$lock" 2>/dev/null; do
-  started=$(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0)
+  started=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
   age=$(($(date +%s) - started))
   existing_owner=$(cat "$lock/owner" 2>/dev/null || true)
   existing_host=${existing_owner%%:*}
