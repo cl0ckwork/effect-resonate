@@ -15,3 +15,5 @@ Vitest provides the assigned ports and template hash to each worker. `PostgresTe
 `itest(name, effect, options?)` follows Vitest's call style. Its optional `network` settings pass to the official SDK; `timing`, `setupTimeout`, and `invocationTimeoutMillis` configure the conformance harness. IntegreSQL supplies the connection string. Without a `network.tickMs` override, the SDK uses its own default.
 
 The regular workspace `pnpm test` includes this suite. Set `SKIP_POSTGRES_TESTS=true` to run the other tests without Docker. Docker and network access are needed for the first image build. The upstream SQL revision is recorded in [UPSTREAM.md](docker/fixtures/UPSTREAM.md).
+
+Run `pnpm test:unit` for unit tests without Docker, or `pnpm test:integration` for integration tests. These commands select Vitest projects; the Postgres global setup belongs only to the integration project. `pnpm test` and CI still run both projects.

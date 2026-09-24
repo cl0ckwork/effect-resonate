@@ -24,12 +24,22 @@ export default defineConfig({
     ]
   },
   test: {
-    include: [
-      "src/**/__tests__/**/*.unit.ts",
-      "src/**/__tests__/**/*.integration.ts"
+    projects: [
+      {
+        test: {
+          name: "unit",
+          include: ["src/**/__tests__/**/*.unit.ts"]
+        }
+      },
+      {
+        test: {
+          name: "integration",
+          include: ["src/**/__tests__/**/*.integration.ts"],
+          exclude: skipPostgres ? ["src/postgres/__tests__/PostgresNetworkScenarios.integration.ts"] : [],
+          globalSetup: skipPostgres ? [] : ["./src/postgres/globalSetup.ts"]
+        }
+      }
     ],
-    exclude: skipPostgres ? ["src/postgres/__tests__/PostgresNetworkScenarios.integration.ts"] : [],
-    globalSetup: skipPostgres ? [] : ["./src/postgres/globalSetup.ts"],
     pool: "threads",
     maxWorkers: 2,
     fileParallelism: false,

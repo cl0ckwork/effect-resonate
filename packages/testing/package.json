@@ -12,6 +12,8 @@
     "typecheck": "tsc -p tsconfig.dev.json --noEmit",
     "test:types": "tsc -p tsconfig.types.json",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
     "clean": "rm -rf dist"
   },
   "dependencies": {
