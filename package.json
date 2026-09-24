@@ -5,21 +5,31 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "lint": "eslint .",
+    "format:check": "node scripts/format-changed.mjs --check",
+    "format": "node scripts/format-changed.mjs --write",
     "typecheck": "pnpm -r --if-present typecheck",
     "test:types": "pnpm -r --if-present test:types",
     "test": "node --test tests/*.test.mjs && pnpm -r --if-present test",
     "test:unit": "node --test tests/*.test.mjs && pnpm -r --if-present test:unit",
     "test:integration": "pnpm -r --if-present test:integration",
-    "check": "pnpm build && pnpm lint && pnpm typecheck && pnpm test:types",
+    "check:packages": "pnpm exec publint run --strict packages/core && pnpm exec attw --pack --profile esm-only packages/core && node scripts/check-packed-packages.mjs",
+    "check": "pnpm build && pnpm lint && pnpm typecheck && pnpm test:types && pnpm check:packages",
     "doctor": "bash scripts/doctor",
-    "worktree-up": "bash scripts/worktree-up"
+    "worktree-up": "bash scripts/worktree-up",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "stage-packages": "node scripts/stage-packages.mjs"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/cli": "^3.0.3",
     "@eslint/js": "10.0.1",
     "effect": "4.0.0-rc.115",
     "eslint": "10.10.0",
     "globals": "17.12.0",
     "lefthook": "^2.1.14",
+    "prettier": "3.9.9",
+    "publint": "^0.3.24",
     "typescript-eslint": "8.70.0"
   }
 }

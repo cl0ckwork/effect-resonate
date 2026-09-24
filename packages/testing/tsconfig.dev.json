@@ -4,9 +4,7 @@
     "baseUrl": "../..",
     "paths": {
       "@effect-resonate/core": ["packages/core/src/index.ts"],
-      "@effect-resonate/core/*": ["packages/core/src/*.ts"],
-      "@effect-resonate/network-postgres": ["packages/network-postgres/src/index.ts"],
-      "@effect-resonate/network-postgres/*": ["packages/network-postgres/src/*.ts"]
+      "@effect-resonate/core/*": ["packages/core/src/*.ts"]
     }
   },
   "include": ["src/*.ts", "src/internal/**/*.ts", "src/postgres/**/*.ts"],

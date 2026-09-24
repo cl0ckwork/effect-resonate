@@ -1,78 +1,142 @@
 # effect-resonate
 
-An Effect-native TypeScript integration for [Resonate](https://resonatehq.io/) durable execution.
+Use [Effect](https://effect.website/) services, typed errors, and Layers with
+[Resonate](https://resonatehq.io/) durable execution. Resonate handles workflow
+orchestration, replay, timers, and retries. Effect runs application work inside
+registered steps and manages client and network resources.
 
-The repository is a lightweight pnpm monorepo. Its foundational package is:
+## Install
 
-- [`@effect-resonate/core`](./packages/core) — the Effect/Resonate integration primitives.
-
-Additional packages should only be introduced when they represent a real runtime, dependency, or testing boundary rather than for architectural neatness.
-
-The intended split is simple:
-
-- **Resonate** owns durable orchestration, replay, timers, and distributed calls.
-- **Effect** owns application effects, typed errors, dependency injection, resources, tracing, and integration services.
-- **TypeScript** is the default contract between trusted workflow steps.
-- **Schema validation** is reserved for real trust boundaries such as workflow ingress and externally resolved signals.
-- **Codecs** are opt-in when durable values need a deliberate persistence / wire representation beyond JSON-compatible values.
-
-The wrapper targets Resonate's `@resonatehq/sdk/async` engine. Effect generators stay inside Effect programs; Resonate durable workflows use normal `async` / `await`.
-
-The first approved implementation keeps the core network-neutral and adds a
-separate Postgres provider package. Start with the
-[specification](./docs/specs/2026-09-15-001-core-async-postgres-spec.md) and
-[implementation plan](./docs/plans/2026-09-15-001-feat-core-async-postgres-plan.md).
-Supporting design notes cover the broader [architecture direction](./docs/BRAINSTORM.md),
-[Effect dependency graph](./docs/DEPENDENCY-GRAPH.md),
-[package topology](./docs/PACKAGING.md), future
-[execution inspection](./docs/EXECUTION-INSPECTION.md), and
-[release direction](./docs/RELEASE-BRAINSTORM.md).
-
-## Workspace
-
-```text
-packages/
-  core/              @effect-resonate/core
-  network-postgres/  @effect-resonate/network-postgres (planned)
-  testing/           private conformance support (planned)
-apps/
-  postgres-e2e/      private runtime acceptance app (planned)
-examples/            workspace consumers / integration examples (when added)
-docs/                specifications, plans, and design notes
-```
-
-Build tooling is intentionally bundler-free: `@effect-resonate/core` uses [`zshy`](https://github.com/colinhacks/zshy) to compile TypeScript and generate package exports.
-
-## Development setup
-
-The repository uses direnv for a cheap, repeatable shell environment and keeps
-AI-agent configuration in the committed `.agents/` directory.
-
-Install Node.js and [direnv](https://direnv.net/) first. The bootstrap installs
-the repository's pinned pnpm version when needed.
+Node.js 22 or newer is required. For PostgreSQL, install core, its peer
+dependencies, and the SDK's `pg` peer:
 
 ```sh
+pnpm add @effect-resonate/core effect @resonatehq/sdk pg
+```
+
+Provision the Resonate PostgreSQL schema and `pg_cron` extension before starting
+the client. See the
+[Postgres setup guide](./packages/core/README.md#database-setup).
+
+If you supply another network provider, `pg` is unnecessary.
+
+## Quick start
+
+This example registers a durable workflow that calls an Effect step. Set
+`DATABASE_URL` to a prepared PostgreSQL database; the
+[PostgreSQL example](./examples/postgres/README.md) shows how to bootstrap one.
+
+```ts
+import {
+  ResonateClient,
+  ResonateFunctions,
+  ResonateNetwork,
+  Step,
+  Workflow
+} from "@effect-resonate/core"
+import { PostgresNetwork } from "@resonatehq/sdk/postgres"
+import { Config, Effect, Layer, Redacted, Schema } from "effect"
+
+const Uppercase = Step.make({
+  name: "text.uppercase",
+  version: 1,
+  input: Schema.String,
+  success: Schema.String,
+  failure: Schema.Never
+})
+
+const Echo = Workflow.make({
+  name: "text.echo",
+  version: 1,
+  input: Schema.String,
+  success: Schema.String,
+  failure: Schema.Never
+})
+
+const UppercaseLive = Uppercase.toLayer((input) => Effect.succeed(input.toUpperCase()))
+const EchoLive = Echo.toLayer(async (context, input) => context.run(Uppercase, input))
+
+const NetworkLive = Layer.unwrap(
+  Config.Redacted("DATABASE_URL").pipe(
+    Effect.map((url) =>
+      ResonateNetwork.layer({
+        make: () => new PostgresNetwork({ connectionString: Redacted.value(url) })
+      })
+    )
+  )
+)
+
+const ClientLive = ResonateClient.layer({
+  functions: ResonateFunctions.make(Uppercase, Echo),
+  drainTimeout: "30 seconds"
+}).pipe(Layer.provide(Layer.mergeAll(NetworkLive, UppercaseLive, EchoLive)))
+
+const program = Effect.gen(function* () {
+  // Reuse this ID for retries of this request; choose a new ID for new input.
+  const handle = yield* ResonateClient.run("echo-1", Echo, "hello")
+  return yield* handle.result()
+}).pipe(Effect.provide(ClientLive))
+
+console.log(await Effect.runPromise(program)) // HELLO
+```
+
+Keep a worker running to process durable executions after callers disconnect.
+Step effects that write to an external system should use an idempotency key
+because a retry can repeat the write. Workflow code should use the Resonate
+context for durable operations; put arbitrary Effect and I/O work in steps.
+
+For contract evolution, recovery with `ResonateClient.get`, and the client API,
+see the [core guide](./packages/core/README.md). The
+[Postgres provider guide](./packages/core/README.md#postgresql-network) covers
+network configuration and database requirements. The
+[Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
+remains the reference for orchestration and retry semantics.
+
+## Examples
+
+- [PostgreSQL workflows](./examples/postgres/README.md): bootstrap a local
+  database with the pinned `resonate.sql`, run a workflow, and evolve its step
+  and workflow contracts while retaining V1 handlers.
+- [In-memory workflow test](./examples/in-memory/README.md): exercise a typed
+  workflow with Resonate's `LocalNetwork`, without PostgreSQL or Docker.
+
+## Packages
+
+- [`@effect-resonate/core`](./packages/core) provides the client Layer,
+  versioned workflow and step contracts, and a network service that accepts
+  providers from the Resonate SDK.
+- [`@effect-resonate/testing`](./packages/testing) is private workspace support
+  for provider conformance tests; consumers do not install it.
+
+## Contributing
+
+Install [mise](https://mise.jdx.dev/) and [direnv](https://direnv.net/), then
+bootstrap a worktree with the Node.js 24 version tracked in `mise.toml`:
+
+```sh
+mise trust
+mise install
 direnv allow
 bash scripts/worktree-up
 ```
 
-`bash scripts/worktree-up` installs the pinned pnpm toolchain when needed, installs
-workspace dependencies, repairs agent-tool symlinks, and finishes with the
-read-only `pnpm run doctor` readiness check. It is idempotent and serializes
-concurrent setup in the same Git worktree.
+The bootstrap installs the pnpm version pinned in `package.json`.
 
-Repo-local agent workflows are available as `er-spec` for specifications and
-`er-plan` for implementation plans, and `er-review` for pre-commit or PR review.
-The review workflow has focused durability, correctness, Effect, testing,
-architecture, and repository-tooling agents. The official `effect-ts` skill is pinned
-in `skills-lock.json` alongside Resonate's philosophy, async TypeScript, and
-Temporal migration skills; worktree bootstrap restores all four. Specifications
-and plans are written under `docs/specs/` and `docs/plans/`.
+Run the package checks and tests before opening a PR:
 
-[Lefthook](https://lefthook.dev/) installs with the workspace dependencies. It
-checks staged whitespace and relevant TypeScript changes before commits, then
-runs typechecking and tests before pushes.
+```sh
+pnpm check
+pnpm test
+pnpm format:check origin/main
+```
 
-## Status
+`pnpm test` includes the Docker-backed Postgres integration suite. Use
+`SKIP_POSTGRES_TESTS=true pnpm test` for a local run without Docker, or run
+`pnpm test:unit` and `pnpm test:integration` separately. For a stacked PR, pass
+its base branch to `pnpm format:check` instead of `origin/main`. Use
+`pnpm format <base-ref>` to format changed files.
 
-Brainstorm / pre-implementation.
+The [architecture guide](./docs/ARCHITECTURE.md) explains the durable execution
+model. The [packaging guide](./docs/PACKAGING.md) describes package boundaries
+and build output. See the [release guide](./docs/RELEASING.md) for Changesets,
+CI, and npm staging.

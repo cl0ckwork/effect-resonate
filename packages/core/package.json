@@ -1,11 +1,22 @@
 {
   "name": "@effect-resonate/core",
+  "description": "Effect-native durable execution with Resonate",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cl0ckwork/effect-resonate.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "access": "public"

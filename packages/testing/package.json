@@ -23,7 +23,6 @@
   "devDependencies": {
     "@devoxa/integresql-client": "2.1.2",
     "@effect/vitest": "4.0.0-rc.115",
-    "@effect-resonate/network-postgres": "workspace:*",
     "@resonatehq/sdk": "^0.11.4",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.10",
