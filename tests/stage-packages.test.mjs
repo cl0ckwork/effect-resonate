@@ -40,6 +40,7 @@ const fixture = (context, version = "0.1.0") => {
   writeFileSync(summary, "")
   writeFileSync(output, "")
   const npm = join(bin, "npm")
+  const stageCli = join(bin, "stage-npm-cli.mjs")
   writeFileSync(
     npm,
     `#!/usr/bin/env node
@@ -74,8 +75,15 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
 `
   )
   chmodSync(npm, 0o755)
+  writeFileSync(
+    stageCli,
+    `import { appendFileSync } from "node:fs"
+appendFileSync(process.env.CALL_LOG, JSON.stringify(["stage-cli", ...process.argv.slice(2)]) + "\\n")
+process.stdout.write("staged\\n")
+`
+  )
 
-  return (scenario, checkOnly = false) => {
+  return (scenario, checkOnly = false, useStageCli = false) => {
     const args = [join(scripts, "stage-packages.mjs"), ...(checkOnly ? ["--check"] : [])]
     const result = spawnSync(process.execPath, args, {
       encoding: "utf8",
@@ -85,6 +93,7 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
         CALL_LOG: calls,
         GITHUB_OUTPUT: output,
         GITHUB_STEP_SUMMARY: summary,
+        NPM_STAGE_CLI: useStageCli ? stageCli : "",
         SCENARIO: scenario
       }
     })
@@ -166,6 +175,16 @@ test("staging records the core version awaiting approval", (context) => {
   }
   assert.match(result.summary, /@effect-resonate\/core@0\.1\.0/)
   assert.doesNotMatch(result.summary, /network-postgres/)
+})
+
+test("staging invokes the pinned npm CLI when supplied", (context) => {
+  const result = fixture(context)("new-version", false, true)
+  assert.equal(result.status, 0)
+  assert.equal(result.invoked.filter(([command]) => command === "stage-cli").length, 1)
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
 })
 
 test("staging stops on a conflict whose exact staged version cannot be verified", (context) => {

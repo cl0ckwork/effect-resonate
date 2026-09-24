@@ -100,7 +100,12 @@ jobs:
         with:
           runtime: node@24
           install: false
-      - run: npm install --global npm@11.20.0
+      - name: Install the npm CLI used for staging
+        run: |
+          npm install --global npm@11.20.0
+          npm_stage_cli="$(npm root --global)/npm/bin/npm-cli.js"
+          test "$(node "$npm_stage_cli" --version)" = "11.20.0"
+          echo "NPM_STAGE_CLI=$npm_stage_cli" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm test

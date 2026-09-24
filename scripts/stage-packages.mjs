@@ -4,6 +4,7 @@ import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)))
+const stageCli = process.env.NPM_STAGE_CLI
 const packagePaths = ["packages/core"]
 const packages = packagePaths
   .map((directory) => ({
@@ -65,8 +66,9 @@ const staged = []
 for (const { directory, name, version } of unpublishedPackages) {
   try {
     const output = execFileSync(
-      "npm",
+      stageCli ? process.execPath : "npm",
       [
+        ...(stageCli ? [stageCli] : []),
         "stage",
         "publish",
         "--access",
