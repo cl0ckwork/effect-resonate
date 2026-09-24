@@ -11,8 +11,10 @@ import type { StepContextService } from "../StepContext.js"
 import * as Workflow from "../Workflow.js"
 import type { WorkflowContext } from "../WorkflowContext.js"
 
-type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
-  (<Value>() => Value extends Right ? 1 : 2) ? true : false
+type Equal<Left, Right> =
+  (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2
+    ? true
+    : false
 type Assert<Condition extends true> = Condition
 
 type _StepInfoParity = Assert<Equal<StepContextService, Info>>
@@ -50,24 +52,27 @@ const Checkout = Workflow.make({
   failure: Schema.Never
 })
 
-const typedRun = context.run(Reserve, { sku: "sku-1" }, {
-  retryPolicy: new Exponential({ maxRetries: 3 }),
-  nonRetryableErrors: [TypeError]
-})
+const typedRun = context.run(
+  Reserve,
+  { sku: "sku-1" },
+  {
+    retryPolicy: new Exponential({ maxRetries: 3 }),
+    nonRetryableErrors: [TypeError]
+  }
+)
 const typedDetached = context.detached(Checkout, { orderId: "order-1" })
 const typedPromise = context.promise(Schema.Struct({ approved: Schema.Boolean }), {
   tags: { tenant: "acme" }
 })
 
-type _TypedRun = Assert<Equal<
-  Awaited<typeof typedRun>,
-  Result.Result<{ readonly reservationId: string }, { readonly reason: string }>
->>
+type _TypedRun = Assert<
+  Equal<
+    Awaited<typeof typedRun>,
+    Result.Result<{ readonly reservationId: string }, { readonly reason: string }>
+  >
+>
 type _TypedDetached = Assert<Equal<typeof typedDetached, DurablePromise<DetachedHandle>>>
-type _TypedPromise = Assert<Equal<
-  Awaited<typeof typedPromise>,
-  { readonly approved: boolean }
->>
+type _TypedPromise = Assert<Equal<Awaited<typeof typedPromise>, { readonly approved: boolean }>>
 
 // @ts-expect-error exact definition versions are supplied by the wrapper
 context.run(Reserve, { sku: "sku-1" }, { version: 2 })

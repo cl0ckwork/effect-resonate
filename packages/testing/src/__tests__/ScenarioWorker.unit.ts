@@ -13,11 +13,12 @@ const HarnessLive = NetworkHarness.layer({
       scenarioTimeout: Duration.millis(20)
     },
     capabilities: {},
-    observe: ({ executionIds }: NetworkHarness.ObservationRequest) => Effect.succeed({
-      phase: "stopped" as const,
-      activeWorkers: 0,
-      executions: executionIds.map((id) => ({ id, state: "unknown" as const }))
-    })
+    observe: ({ executionIds }: NetworkHarness.ObservationRequest) =>
+      Effect.succeed({
+        phase: "stopped" as const,
+        activeWorkers: 0,
+        executions: executionIds.map((id) => ({ id, state: "unknown" as const }))
+      })
   })
 })
 
@@ -28,20 +29,23 @@ describe("ScenarioWorker", () => {
     let releases = 0
     const HangingWorker = Layer.effect(
       ResonateClient,
-      Effect.acquireRelease(
-        Effect.succeed(null),
-        () => Effect.sync(() => {
+      Effect.acquireRelease(Effect.succeed(null), () =>
+        Effect.sync(() => {
           releases += 1
         })
       ).pipe(Effect.andThen(Effect.never))
     )
 
-    const failure = await Effect.runPromise(Effect.flip(
-      Effect.scoped(startWorker({
-        scenario: "startup-timeout",
-        layer: HangingWorker
-      })).pipe(Effect.provide(HarnessLive))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Effect.scoped(
+          startWorker({
+            scenario: "startup-timeout",
+            layer: HangingWorker
+          })
+        ).pipe(Effect.provide(HarnessLive))
+      )
+    )
 
     assert.strictEqual(failure.issue, "WorkerFailed")
     assert.strictEqual(releases, 1)
@@ -52,26 +56,35 @@ describe("ScenarioWorker", () => {
     let releases = 0
     const ReadyWorker = Layer.effect(
       ResonateClient,
-      Effect.acquireRelease(
-        Effect.succeed(emptyClient),
-        () => Effect.sync(() => {
+      Effect.acquireRelease(Effect.succeed(emptyClient), () =>
+        Effect.sync(() => {
           releases += 1
         })
       )
     )
 
-    const result = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
-      const worker = yield* startWorker({
-        scenario: "operation-timeout",
-        layer: ReadyWorker
-      })
-      const failure = yield* Effect.flip(worker.runExit({
-        effect: Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(() => {
-          interruptions += 1
-        })))
-      }))
-      return { failure, interruptionsBeforeCleanup: interruptions }
-    })).pipe(Effect.provide(HarnessLive)))
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const worker = yield* startWorker({
+            scenario: "operation-timeout",
+            layer: ReadyWorker
+          })
+          const failure = yield* Effect.flip(
+            worker.runExit({
+              effect: Effect.never.pipe(
+                Effect.onInterrupt(() =>
+                  Effect.sync(() => {
+                    interruptions += 1
+                  })
+                )
+              )
+            })
+          )
+          return { failure, interruptionsBeforeCleanup: interruptions }
+        })
+      ).pipe(Effect.provide(HarnessLive))
+    )
 
     assert.strictEqual(result.failure.issue, "WorkerFailed")
     assert.strictEqual(result.interruptionsBeforeCleanup, 1)
@@ -82,18 +95,19 @@ describe("ScenarioWorker", () => {
     const secret = "postgres://cleanup-secret@example.invalid/database"
     const FailingCleanup = Layer.effect(
       ResonateClient,
-      Effect.acquireRelease(
-        Effect.succeed(emptyClient),
-        () => Effect.die(new Error(secret))
-      )
+      Effect.acquireRelease(Effect.succeed(emptyClient), () => Effect.die(new Error(secret)))
     )
 
-    const exit = await Effect.runPromise(Effect.exit(
-      Effect.scoped(startWorker({
-        scenario: "cleanup-failure",
-        layer: FailingCleanup
-      })).pipe(Effect.provide(HarnessLive))
-    ))
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        Effect.scoped(
+          startWorker({
+            scenario: "cleanup-failure",
+            layer: FailingCleanup
+          })
+        ).pipe(Effect.provide(HarnessLive))
+      )
+    )
 
     assert.isTrue(Exit.isFailure(exit))
     if (Exit.isFailure(exit)) {

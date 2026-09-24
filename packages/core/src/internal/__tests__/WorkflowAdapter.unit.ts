@@ -46,16 +46,19 @@ describe("WorkflowAdapter", () => {
       success: Schema.Null,
       failure: Schema.Null
     })
-    const handler = { execute: async () => {
+    const handler = {
+      execute: async () => {
         executions += 1
         return Result.succeed(null)
-      } }
+      }
+    }
 
     const result = await WorkflowAdapter.make(definition, handler)(context)
 
-    assert.deepStrictEqual(result, DurableOutcome.invalidInput(
-      DurableOutcome.identityOf(definition)
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
+    )
     assert.strictEqual(executions, 0)
   })
 
@@ -68,16 +71,19 @@ describe("WorkflowAdapter", () => {
       success: Schema.Null,
       failure: Schema.Null
     })
-    const handler = { execute: async () => {
+    const handler = {
+      execute: async () => {
         executions += 1
         return Result.succeed(null)
-      } }
+      }
+    }
 
     const result = await WorkflowAdapter.make(definition, handler)(context, { orderId: 1 })
 
-    assert.deepStrictEqual(result, DurableOutcome.invalidInput(
-      DurableOutcome.identityOf(definition)
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
+    )
     assert.strictEqual(executions, 0)
   })
 
@@ -93,10 +99,10 @@ describe("WorkflowAdapter", () => {
 
     const result = await WorkflowAdapter.make(definition, handler)(context, null)
 
-    assert.deepStrictEqual(result, DurableOutcome.success(
-      DurableOutcome.identityOf(definition),
-      { accepted: true }
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.success(DurableOutcome.identityOf(definition), { accepted: true })
+    )
   })
 
   it("encodes the workflow checked-failure branch", async () => {
@@ -111,10 +117,10 @@ describe("WorkflowAdapter", () => {
 
     const result = await WorkflowAdapter.make(definition, handler)(context, null)
 
-    assert.deepStrictEqual(result, DurableOutcome.failure(
-      DurableOutcome.identityOf(definition),
-      { reason: "declined" }
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.failure(DurableOutcome.identityOf(definition), { reason: "declined" })
+    )
   })
 
   it("rejects a non-Result workflow return as ContractViolation", async () => {
@@ -179,9 +185,11 @@ describe("WorkflowAdapter", () => {
       success: Schema.Null,
       failure: Schema.Null
     })
-    const handler = { execute: async () => {
+    const handler = {
+      execute: async () => {
         throw new TypeError("boom")
-      } }
+      }
+    }
 
     const rejected = await rejectionOf(WorkflowAdapter.make(definition, handler)(context, null))
 
@@ -209,25 +217,29 @@ describe("WorkflowAdapter", () => {
       success: Schema.Null,
       failure: Schema.Null
     })
-    const handler = { execute: async (workflow: import("../../WorkflowContext.js").WorkflowContext) => {
+    const handler = {
+      execute: async (workflow: import("../../WorkflowContext.js").WorkflowContext) => {
         await workflow.run(step, null)
         return Result.succeed(null)
-      } }
+      }
+    }
     const sdkContext = {
       ...info,
       options: (options: unknown) => options,
-      run: () => durable("child-1", Promise.reject({
-        _tag: "@effect-resonate/core/ExecutionRejected",
-        executionId: "child-1",
-        definitionName: step.name,
-        definitionVersion: step.version,
-        reason: "Defect"
-      }))
+      run: () =>
+        durable(
+          "child-1",
+          Promise.reject({
+            _tag: "@effect-resonate/core/ExecutionRejected",
+            executionId: "child-1",
+            definitionName: step.name,
+            definitionVersion: step.version,
+            reason: "Defect"
+          })
+        )
     } as unknown as ResonateContext
 
-    const rejected = await rejectionOf(
-      WorkflowAdapter.make(definition, handler)(sdkContext, null)
-    )
+    const rejected = await rejectionOf(WorkflowAdapter.make(definition, handler)(sdkContext, null))
 
     assert.deepStrictEqual(rejected, {
       _tag: "@effect-resonate/core/ExecutionRejected",

@@ -40,9 +40,9 @@ describe("DefinitionRegistry", () => {
       failure: Schema.Never
     })
 
-    const failure = await Effect.runPromise(Effect.flip(
-      DefinitionRegistry.make(ResonateFunctions.make(Invalid))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(Invalid)))
+    )
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/InvalidDefinition",
@@ -61,9 +61,9 @@ describe("DefinitionRegistry", () => {
         failure: Schema.Never
       })
 
-      const failure = await Effect.runPromise(Effect.flip(
-        DefinitionRegistry.make(ResonateFunctions.make(Invalid))
-      ))
+      const failure = await Effect.runPromise(
+        Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(Invalid)))
+      )
 
       assert.deepInclude(failure, {
         _tag: "@effect-resonate/core/InvalidDefinition",
@@ -81,9 +81,11 @@ describe("DefinitionRegistry", () => {
       failure: Schema.Never
     })
 
-    const failure = await Effect.runPromise(Effect.flip(
-      DefinitionRegistry.make(ResonateFunctions.make(NullStep, WorkflowWithSameIdentity))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        DefinitionRegistry.make(ResonateFunctions.make(NullStep, WorkflowWithSameIdentity))
+      )
+    )
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/DuplicateDefinition",
@@ -101,9 +103,9 @@ describe("DefinitionRegistry", () => {
       failure: Schema.Never
     })
 
-    const failure = await Effect.runPromise(Effect.flip(
-      DefinitionRegistry.make(ResonateFunctions.make(NullStep, InvalidV2))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(NullStep, InvalidV2)))
+    )
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/InvalidDefinition",
@@ -127,9 +129,9 @@ describe("DefinitionRegistry", () => {
       failure: Schema.Never
     })
 
-    const failure = await Effect.runPromise(Effect.flip(
-      DefinitionRegistry.make(ResonateFunctions.make(Current))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(Current)))
+    )
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/InvalidDefinition",
@@ -142,9 +144,9 @@ describe("DefinitionRegistry", () => {
     const SelfReferential = { ...NullStep }
     Object.defineProperty(SelfReferential, "previous", { value: SelfReferential })
 
-    const failure = await Effect.runPromise(Effect.flip(
-      DefinitionRegistry.make(ResonateFunctions.make(SelfReferential))
-    ))
+    const failure = await Effect.runPromise(
+      Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(SelfReferential)))
+    )
 
     assert.deepInclude(failure, {
       _tag: "@effect-resonate/core/InvalidDefinition",
@@ -177,9 +179,9 @@ describe("DefinitionRegistry", () => {
     } as unknown as typeof Current
 
     for (const definition of [WrongName, WrongKind]) {
-      const failure = await Effect.runPromise(Effect.flip(
-        DefinitionRegistry.make(ResonateFunctions.make(definition))
-      ))
+      const failure = await Effect.runPromise(
+        Effect.flip(DefinitionRegistry.make(ResonateFunctions.make(definition)))
+      )
 
       assert.deepInclude(failure, {
         _tag: "@effect-resonate/core/InvalidDefinition",

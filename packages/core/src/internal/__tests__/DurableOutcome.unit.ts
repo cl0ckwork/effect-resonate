@@ -24,10 +24,7 @@ const WorkflowDefinition = Workflow.make({
 const stepIdentity = DurableOutcome.identityOf(StepDefinition)
 const executionId = "order-42"
 
-const expectProtocolIssue = (
-  value: unknown,
-  issue: string
-): void => {
+const expectProtocolIssue = (value: unknown, issue: string): void => {
   const decoded = DurableOutcome.decodeStepResult(StepDefinition, value)
   assert.isTrue(Result.isFailure(decoded))
   if (Result.isFailure(decoded)) {
@@ -73,7 +70,11 @@ describe("DurableOutcome", () => {
         Failure: () => assert.fail("expected workflow success"),
         InvalidInput: () => assert.fail("expected workflow success")
       })
-      const decoded = DurableOutcome.decodeWorkflowResult(WorkflowDefinition, executionId, encoded.success)
+      const decoded = DurableOutcome.decodeWorkflowResult(
+        WorkflowDefinition,
+        executionId,
+        encoded.success
+      )
       assert.deepStrictEqual(decoded, Result.succeed(Result.succeed(42)))
     }
   })
@@ -90,10 +91,10 @@ describe("DurableOutcome", () => {
 
     assert.isTrue(Result.isSuccess(encoded))
     if (Result.isSuccess(encoded)) {
-      assert.deepStrictEqual(encoded.success, DurableOutcome.success(
-        DurableOutcome.identityOf(TransformedStep),
-        "42"
-      ))
+      assert.deepStrictEqual(
+        encoded.success,
+        DurableOutcome.success(DurableOutcome.identityOf(TransformedStep), "42")
+      )
       assert.deepStrictEqual(
         DurableOutcome.decodeStepResult(TransformedStep, encoded.success),
         Result.succeed(Result.succeed(42))
@@ -130,13 +131,21 @@ describe("DurableOutcome", () => {
     )
     assert.isTrue(Result.isSuccess(encoded))
     if (Result.isSuccess(encoded)) {
-      const decoded = DurableOutcome.decodeWorkflowResult(WorkflowDefinition, executionId, encoded.success)
+      const decoded = DurableOutcome.decodeWorkflowResult(
+        WorkflowDefinition,
+        executionId,
+        encoded.success
+      )
       assert.deepStrictEqual(decoded, Result.succeed(Result.fail({ reason: "declined" })))
     }
   })
 
   it("classifies malformed headers, versions, identities, tags, and branches", () => {
-    for (const value of [null, {}, { protocolVersion: "1", definition: stepIdentity, _tag: "Success", value: 1 }]) {
+    for (const value of [
+      null,
+      {},
+      { protocolVersion: "1", definition: stepIdentity, _tag: "Success", value: 1 }
+    ]) {
       expectProtocolIssue(value, "MalformedEnvelope")
     }
 
@@ -162,7 +171,12 @@ describe("DurableOutcome", () => {
       { protocolVersion: 1, definition: stepIdentity, _tag: "Success" },
       { protocolVersion: 1, definition: stepIdentity, _tag: "Success", value: 1, error: "both" },
       { protocolVersion: 1, definition: stepIdentity, _tag: "Failure", value: 1, error: "both" },
-      { protocolVersion: 1, definition: stepIdentity, _tag: "InvalidInput", issue: { _tag: "Other" } }
+      {
+        protocolVersion: 1,
+        definition: stepIdentity,
+        _tag: "InvalidInput",
+        issue: { _tag: "Other" }
+      }
     ]) {
       expectProtocolIssue(value, "InvalidOutcome")
     }
@@ -201,8 +215,10 @@ describe("DurableOutcome", () => {
     assert.isTrue(Result.isFailure(decoded))
     if (Result.isFailure(decoded)) {
       Match.valueTags(decoded.failure, {
-        "@effect-resonate/core/DefinitionConflict": () => assert.fail("expected invalid workflow input"),
-        "@effect-resonate/core/DurableProtocolError": () => assert.fail("expected invalid workflow input"),
+        "@effect-resonate/core/DefinitionConflict": () =>
+          assert.fail("expected invalid workflow input"),
+        "@effect-resonate/core/DurableProtocolError": () =>
+          assert.fail("expected invalid workflow input"),
         "@effect-resonate/core/InvalidWorkflowInput": (error) => {
           assert.strictEqual(error.workflowName, "checkout")
           assert.strictEqual(error.workflowVersion, 1)
@@ -272,9 +288,11 @@ describe("DurableOutcome", () => {
     const secret = "secret-step-output"
     const encoded = DurableOutcome.encodeStepResult(
       StepDefinition,
-      Result.succeed(new (class SecretValue {
-        readonly value = secret
-      })() as never)
+      Result.succeed(
+        new (class SecretValue {
+          readonly value = secret
+        })() as never
+      )
     )
 
     assert.isTrue(Result.isFailure(encoded))

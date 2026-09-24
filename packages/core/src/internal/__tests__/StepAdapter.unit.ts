@@ -21,11 +21,9 @@ const info: Info = {
 
 const makeRuntime = <Definition extends Step.Any, R>(
   definition: Definition,
-  execute: (input: Step.Step.Input<Definition>) => Effect.Effect<
-    Step.Step.Success<Definition>,
-    Step.Step.Failure<Definition>,
-    R
-  >
+  execute: (
+    input: Step.Step.Input<Definition>
+  ) => Effect.Effect<Step.Step.Success<Definition>, Step.Step.Failure<Definition>, R>
 ) => ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, definition.toLayer(execute)))
 
 const rejectionOf = async (promise: Promise<unknown>): Promise<unknown> => {
@@ -37,10 +35,7 @@ const rejectionOf = async (promise: Promise<unknown>): Promise<unknown> => {
   }
 }
 
-const expectReason = async (
-  promise: Promise<unknown>,
-  reason: string
-): Promise<void> => {
+const expectReason = async (promise: Promise<unknown>, reason: string): Promise<void> => {
   assert.deepInclude(await rejectionOf(promise), {
     _tag: "@effect-resonate/core/ExecutionRejected",
     executionId: info.id,
@@ -63,7 +58,8 @@ describe("StepAdapter", () => {
       }),
       failure: Schema.Never
     })
-    const runtime = makeRuntime(definition, () => Effect.gen(function*() {
+    const runtime = makeRuntime(definition, () =>
+      Effect.gen(function* () {
         const context = yield* StepContext
         return {
           id: context.id,
@@ -72,21 +68,28 @@ describe("StepAdapter", () => {
           dependency: context.getDependency<string>("region") ?? "missing",
           frozen: Object.isFrozen(context)
         }
-      }))
+      })
+    )
     await runtime.context()
 
-    const result = await StepAdapter.make(definition, runtime.runPromise)({
-      ...info,
-      getDependency: (key) => key === "region" ? "us-east-1" : undefined
-    }, { sku: "sku-1" })
+    const result = await StepAdapter.make(definition, runtime.runPromise)(
+      {
+        ...info,
+        getDependency: (key) => (key === "region" ? "us-east-1" : undefined)
+      },
+      { sku: "sku-1" }
+    )
 
-    assert.deepStrictEqual(result, DurableOutcome.success(DurableOutcome.identityOf(definition), {
-      id: info.id,
-      attempt: 2,
-      func: info.func,
-      dependency: "us-east-1",
-      frozen: true
-    }))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.success(DurableOutcome.identityOf(definition), {
+        id: info.id,
+        attempt: 2,
+        func: info.func,
+        dependency: "us-east-1",
+        frozen: true
+      })
+    )
     await runtime.dispose()
   })
 
@@ -100,18 +103,19 @@ describe("StepAdapter", () => {
       failure: Schema.Never
     })
     const runtime = ManagedRuntime.make(
-      Layer.merge(AdapterSupervisor.layer, definition.toLayer(() => Inventory.use(Effect.succeed))).pipe(
-        Layer.provideMerge(Layer.succeed(Inventory, "reservation-1"))
-      )
+      Layer.merge(
+        AdapterSupervisor.layer,
+        definition.toLayer(() => Inventory.use(Effect.succeed))
+      ).pipe(Layer.provideMerge(Layer.succeed(Inventory, "reservation-1")))
     )
     await runtime.context()
 
     const result = await StepAdapter.make(definition, runtime.runPromise)(info, null)
 
-    assert.deepStrictEqual(result, DurableOutcome.success(
-      DurableOutcome.identityOf(definition),
-      "reservation-1"
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.success(DurableOutcome.identityOf(definition), "reservation-1")
+    )
     await runtime.dispose()
   })
 
@@ -128,10 +132,10 @@ describe("StepAdapter", () => {
 
     const result = await StepAdapter.make(definition, runtime.runPromise)(info, null)
 
-    assert.deepStrictEqual(result, DurableOutcome.failure(
-      DurableOutcome.identityOf(definition),
-      { reason: "declined" }
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.failure(DurableOutcome.identityOf(definition), { reason: "declined" })
+    )
     await runtime.dispose()
   })
 
@@ -160,7 +164,7 @@ describe("StepAdapter", () => {
     })
     const defect = new TypeError("boom")
     const runtime = makeRuntime(definition, (): Effect.Effect<never> => {
-        throw defect
+      throw defect
     })
     await runtime.context()
 
@@ -212,12 +216,15 @@ describe("StepAdapter", () => {
       success: Schema.Never,
       failure: Schema.String
     })
-    const runtime = makeRuntime(definition, () => Effect.failCause(
-        Cause.combine(Cause.fail("expected"), Cause.die("boom"))
-      ))
+    const runtime = makeRuntime(definition, () =>
+      Effect.failCause(Cause.combine(Cause.fail("expected"), Cause.die("boom")))
+    )
     await runtime.context()
 
-    await expectReason(StepAdapter.make(definition, runtime.runPromise)(info, null), "CompositeCause")
+    await expectReason(
+      StepAdapter.make(definition, runtime.runPromise)(info, null),
+      "CompositeCause"
+    )
     await runtime.dispose()
   })
 
@@ -245,10 +252,12 @@ describe("StepAdapter", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    const runtime = makeRuntime(definition, () => Effect.sync(() => {
+    const runtime = makeRuntime(definition, () =>
+      Effect.sync(() => {
         executions += 1
         return null
-      }))
+      })
+    )
     await runtime.context()
 
     await expectReason(StepAdapter.make(definition, runtime.runPromise)(info), "ContractViolation")
@@ -265,10 +274,12 @@ describe("StepAdapter", () => {
       success: Schema.Null,
       failure: Schema.Never
     })
-    const runtime = makeRuntime(definition, () => Effect.sync(() => {
+    const runtime = makeRuntime(definition, () =>
+      Effect.sync(() => {
         executions += 1
         return null
-      }))
+      })
+    )
     await runtime.context()
 
     await expectReason(
@@ -331,7 +342,10 @@ describe("StepAdapter", () => {
     await runtime.runPromise(AdapterSupervisor.abandon)
     await runtime.runPromise(AdapterSupervisor.drain)
     const observation = await Promise.race([
-      execution.then(() => "settled", () => "rejected"),
+      execution.then(
+        () => "settled",
+        () => "rejected"
+      ),
       new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 5))
     ])
 
@@ -353,7 +367,10 @@ describe("StepAdapter", () => {
     await runtime.runPromise(AdapterSupervisor.close)
     const execution = StepAdapter.make(definition, runtime.runPromise)(info, null)
     const observation = await Promise.race([
-      execution.then(() => "settled", () => "rejected"),
+      execution.then(
+        () => "settled",
+        () => "rejected"
+      ),
       new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 5))
     ])
 

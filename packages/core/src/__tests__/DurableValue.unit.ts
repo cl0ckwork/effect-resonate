@@ -2,7 +2,8 @@ import { assert, describe, it } from "@effect/vitest"
 import { Result, Schema } from "effect"
 import { schema } from "../DurableValue.js"
 
-const accepts = (value: unknown): boolean => Result.isSuccess(Schema.decodeUnknownResult(schema)(value))
+const accepts = (value: unknown): boolean =>
+  Result.isSuccess(Schema.decodeUnknownResult(schema)(value))
 
 describe("DurableValue", () => {
   it("accepts every JSON primitive and empty/composite containers", () => {

@@ -21,13 +21,20 @@ import {
   type WorkflowContext
 } from "../index.js"
 
-type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
-  (<Value>() => Value extends Right ? 1 : 2) ? true : false
+type Equal<Left, Right> =
+  (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2
+    ? true
+    : false
 type Assert<Condition extends true> = Condition
 
-class Inventory extends Context.Service<Inventory, {
-  readonly reserve: (sku: string) => Effect.Effect<{ readonly reservationId: string }, { readonly reason: string }>
-}>()("test/Inventory") {}
+class Inventory extends Context.Service<
+  Inventory,
+  {
+    readonly reserve: (
+      sku: string
+    ) => Effect.Effect<{ readonly reservationId: string }, { readonly reason: string }>
+  }
+>()("test/Inventory") {}
 
 const Reserve = Step.make({
   name: "inventory.reserve",
@@ -38,20 +45,26 @@ const Reserve = Step.make({
 })
 
 const ReserveLive = Reserve.toLayer((input) =>
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const inventory = yield* Inventory
     const context = yield* StepContext
     const reservation = yield* inventory.reserve(input.sku)
     return { reservationId: reservation.reservationId, stepId: context.id }
-  }))
+  })
+)
 
 type _StepInput = Assert<Equal<Step.Step.Input<typeof Reserve>, { readonly sku: string }>>
 type _StepSuccess = Assert<
-  Equal<Step.Step.Success<typeof Reserve>, { readonly reservationId: string; readonly stepId: string }>
+  Equal<
+    Step.Step.Success<typeof Reserve>,
+    { readonly reservationId: string; readonly stepId: string }
+  >
 >
 type _StepFailure = Assert<Equal<Step.Step.Failure<typeof Reserve>, { readonly reason: string }>>
 type _StepLayerRequirements = Assert<Equal<Layer.Services<typeof ReserveLive>, Inventory>>
-type _StepLayerOutput = Assert<Equal<Layer.Success<typeof ReserveLive>, Step.Handler<typeof Reserve>>>
+type _StepLayerOutput = Assert<
+  Equal<Layer.Success<typeof ReserveLive>, Step.Handler<typeof Reserve>>
+>
 
 const ReserveV2 = Step.evolve(Reserve, {
   version: 2,
@@ -87,12 +100,18 @@ const CheckoutLive = Checkout.toLayer(async (context, input) => {
   return Result.succeed({ reservationId: reservation.success.reservationId })
 })
 
-type _WorkflowInput = Assert<Equal<Workflow.Workflow.Input<typeof Checkout>, { readonly sku: string }>>
+type _WorkflowInput = Assert<
+  Equal<Workflow.Workflow.Input<typeof Checkout>, { readonly sku: string }>
+>
 type _WorkflowSuccess = Assert<
   Equal<Workflow.Workflow.Success<typeof Checkout>, { readonly reservationId: string }>
 >
-type _WorkflowFailure = Assert<Equal<Workflow.Workflow.Failure<typeof Checkout>, { readonly reason: string }>>
-type _WorkflowLayerOutput = Assert<Equal<Layer.Success<typeof CheckoutLive>, Workflow.Handler<typeof Checkout>>>
+type _WorkflowFailure = Assert<
+  Equal<Workflow.Workflow.Failure<typeof Checkout>, { readonly reason: string }>
+>
+type _WorkflowLayerOutput = Assert<
+  Equal<Layer.Success<typeof CheckoutLive>, Workflow.Handler<typeof Checkout>>
+>
 
 const CheckoutV2 = Workflow.evolve(Checkout, {
   version: 2,
@@ -104,7 +123,9 @@ const CheckoutV2 = Workflow.evolve(Checkout, {
 type _EvolvedWorkflowName = Assert<Equal<Workflow.Workflow.Name<typeof CheckoutV2>, "checkout">>
 type _EvolvedWorkflowVersion = Assert<Equal<Workflow.Workflow.Version<typeof CheckoutV2>, 2>>
 type _EvolvedWorkflowPrevious = Assert<Equal<typeof CheckoutV2.previous, typeof Checkout>>
-const CheckoutV2Live = CheckoutV2.toLayer(async () => Result.succeed({ reservationId: "reservation-1" }))
+const CheckoutV2Live = CheckoutV2.toLayer(async () =>
+  Result.succeed({ reservationId: "reservation-1" })
+)
 type _EvolvedWorkflowLayerOutput = Assert<
   Equal<Layer.Success<typeof CheckoutV2Live>, Workflow.Handler<typeof CheckoutV2>>
 >
@@ -114,8 +135,12 @@ const CheckoutFunctions = ResonateFunctions.make(Reserve, Checkout)
 type _Functions = Assert<
   Equal<ResonateFunctions.Functions<typeof CheckoutFunctions>, typeof Reserve | typeof Checkout>
 >
-type _FunctionSteps = Assert<Equal<ResonateFunctions.Steps<typeof CheckoutFunctions>, typeof Reserve>>
-type _FunctionWorkflows = Assert<Equal<ResonateFunctions.Workflows<typeof CheckoutFunctions>, typeof Checkout>>
+type _FunctionSteps = Assert<
+  Equal<ResonateFunctions.Steps<typeof CheckoutFunctions>, typeof Reserve>
+>
+type _FunctionWorkflows = Assert<
+  Equal<ResonateFunctions.Workflows<typeof CheckoutFunctions>, typeof Checkout>
+>
 type _FunctionHandlers = Assert<
   Equal<
     ResonateFunctions.Handlers<typeof CheckoutFunctions>,
@@ -154,13 +179,15 @@ const ClientLayer = ResonateClient.layer({
   logLevel: "debug"
 })
 type SdkClientOptions = NonNullable<ConstructorParameters<typeof SdkResonate>[0]>
-type _ClientOptionParity = Assert<Equal<
-  keyof ResonateClient.ClientOptions,
-  Exclude<keyof SdkClientOptions, "network">
->>
+type _ClientOptionParity = Assert<
+  Equal<keyof ResonateClient.ClientOptions, Exclude<keyof SdkClientOptions, "network">>
+>
 type _ClientLayerOutput = Assert<Equal<Layer.Success<typeof ClientLayer>, ResonateClientService>>
 type _ClientLayerRequirements = Assert<
-  Equal<Layer.Services<typeof ClientLayer>, ResonateNetworkService | ResonateFunctions.Handlers<typeof CheckoutFunctions>>
+  Equal<
+    Layer.Services<typeof ClientLayer>,
+    ResonateNetworkService | ResonateFunctions.Handlers<typeof CheckoutFunctions>
+  >
 >
 
 declare const compatibleNetwork: import("@resonatehq/sdk").Network
@@ -170,12 +197,12 @@ const NetworkLive = Layer.succeed(
   ResonateNetwork.ResonateNetwork,
   ResonateNetwork.ResonateNetwork.of({ make: Effect.succeed(compatibleNetwork) })
 )
-const ConfiguredClientLayer = ClientLayer.pipe(Layer.provide([
-  NetworkLive,
-  ReserveLive,
-  CheckoutLive
-]))
-type _ConfiguredClientRequirements = Assert<Equal<Layer.Services<typeof ConfiguredClientLayer>, Inventory>>
+const ConfiguredClientLayer = ClientLayer.pipe(
+  Layer.provide([NetworkLive, ReserveLive, CheckoutLive])
+)
+type _ConfiguredClientRequirements = Assert<
+  Equal<Layer.Services<typeof ConfiguredClientLayer>, Inventory>
+>
 
 declare const client: ResonateClient.ResonateClientService
 const clientRun = client.run("checkout-1", Checkout, { sku: "sku-1" })
@@ -212,7 +239,11 @@ declare const rawTarget: typeof rawFunction | string
 const rawUnionRun = client.run<{ readonly sku: string }>("raw-union-1", rawTarget, "sku-1")
 const rawExplicitRun = client.run<{ readonly sku: string }>("raw-explicit-1", rawFunction, "sku-1")
 const rawUnionRpc = client.rpc<{ readonly sku: string }>("raw-union-rpc-1", rawTarget, "sku-1")
-const rawExplicitRpc = client.rpc<{ readonly sku: string }>("raw-explicit-rpc-1", rawFunction, "sku-1")
+const rawExplicitRpc = client.rpc<{ readonly sku: string }>(
+  "raw-explicit-rpc-1",
+  rawFunction,
+  "sku-1"
+)
 const rawZeroArgumentFunction = async (_context: SdkContext) => "ready"
 const rawZeroArgumentRun = client.run("raw-zero-1", rawZeroArgumentFunction)
 type _RawRunSuccess = Assert<
@@ -222,22 +253,29 @@ type _RawRunSuccess = Assert<
   >
 >
 type _RawRunError = Assert<Equal<Effect.Error<typeof rawRun>, CoreExecutionError.ResonateSdkError>>
-type _RawUnionRun = Assert<Equal<Effect.Success<typeof rawUnionRun>, Effect.Success<typeof rawExplicitRun>>>
-type _RawUnionRpc = Assert<Equal<Effect.Success<typeof rawUnionRpc>, Effect.Success<typeof rawExplicitRpc>>>
-type _RawZeroArgumentRun = Assert<Equal<
-  Effect.Success<typeof rawZeroArgumentRun>,
-  ResonateClient.ResonateHandle<string, CoreExecutionError.ResonateSdkError>
->>
+type _RawUnionRun = Assert<
+  Equal<Effect.Success<typeof rawUnionRun>, Effect.Success<typeof rawExplicitRun>>
+>
+type _RawUnionRpc = Assert<
+  Equal<Effect.Success<typeof rawUnionRpc>, Effect.Success<typeof rawExplicitRpc>>
+>
+type _RawZeroArgumentRun = Assert<
+  Equal<
+    Effect.Success<typeof rawZeroArgumentRun>,
+    ResonateClient.ResonateHandle<string, CoreExecutionError.ResonateSdkError>
+  >
+>
 
-const rawNamedRun = client.run<{ readonly accepted: boolean }>(
-  "raw-named-1",
-  "accept",
-  { requestId: "request-1" }
-)
+const rawNamedRun = client.run<{ readonly accepted: boolean }>("raw-named-1", "accept", {
+  requestId: "request-1"
+})
 type _RawNamedRun = Assert<
   Equal<
     Effect.Success<typeof rawNamedRun>,
-    ResonateClient.ResonateHandle<{ readonly accepted: boolean }, CoreExecutionError.ResonateSdkError>
+    ResonateClient.ResonateHandle<
+      { readonly accepted: boolean },
+      CoreExecutionError.ResonateSdkError
+    >
   >
 >
 
@@ -249,18 +287,27 @@ declare const registeredFunction: Effect.Success<typeof registered>
 registeredFunction.options({ nonRetryableErrors: [TypeError] })
 const registeredRun = registeredFunction.run("inventory-raw-1", "sku-1")
 const registeredRpc = registeredFunction.rpc("inventory-raw-2", "sku-2")
-type _RegisteredRun = Assert<Equal<
-  Effect.Success<typeof registeredRun>,
-  ResonateClient.ResonateHandle<{ sku: string }, CoreExecutionError.ResonateSdkError>
->>
-type _RegisteredRpc = Assert<Equal<Effect.Success<typeof registeredRpc>, Effect.Success<typeof registeredRun>>>
+type _RegisteredRun = Assert<
+  Equal<
+    Effect.Success<typeof registeredRun>,
+    ResonateClient.ResonateHandle<{ sku: string }, CoreExecutionError.ResonateSdkError>
+  >
+>
+type _RegisteredRpc = Assert<
+  Equal<Effect.Success<typeof registeredRpc>, Effect.Success<typeof registeredRun>>
+>
 
 const rawSchedule = client.schedule("inventory-hourly", "0 * * * *", rawFunction, "sku-1")
-type _RawSchedule = Assert<Equal<Effect.Success<typeof rawSchedule>, ResonateClient.ResonateSchedule>>
+type _RawSchedule = Assert<
+  Equal<Effect.Success<typeof rawSchedule>, ResonateClient.ResonateSchedule>
+>
 
 const rawGet = client.get<number>("promise-1")
 type _RawGet = Assert<
-  Equal<Effect.Success<typeof rawGet>, ResonateClient.ResonateHandle<number, CoreExecutionError.ResonateSdkError>>
+  Equal<
+    Effect.Success<typeof rawGet>,
+    ResonateClient.ResonateHandle<number, CoreExecutionError.ResonateSdkError>
+  >
 >
 
 const typedGet = client.get("checkout-1", Checkout)
@@ -276,22 +323,33 @@ const promiseListener = client.promises.registerListener("promise-1", "worker-1"
 type _PromiseGet = Assert<Equal<Effect.Success<typeof promiseGet>, PromiseRecord>>
 type _PromiseCreate = Assert<Equal<Effect.Success<typeof promiseCreate>, PromiseRecord>>
 type _PromiseCreateWithTask = Assert<
-  Equal<Effect.Success<typeof promiseCreateWithTask>, Awaited<ReturnType<SdkResonate["promises"]["createWithTask"]>>>
+  Equal<
+    Effect.Success<typeof promiseCreateWithTask>,
+    Awaited<ReturnType<SdkResonate["promises"]["createWithTask"]>>
+  >
 >
 type _PromiseResolve = Assert<Equal<Effect.Success<typeof promiseResolve>, PromiseRecord>>
-type _PromiseResolveError = Assert<Equal<Effect.Error<typeof promiseResolve>, CoreExecutionError.ResonateSdkError>>
-type _TypedPromiseResolveError = Assert<Equal<
-  Effect.Error<typeof typedPromiseResolve>,
-  CoreExecutionError.DurableProtocolError | CoreExecutionError.ResonateSdkError
->>
-type _PromiseCallback = Assert<Equal<
-  Effect.Success<typeof promiseCallback>,
-  Awaited<ReturnType<SdkResonate["promises"]["registerCallback"]>>
->>
-type _PromiseListener = Assert<Equal<
-  Effect.Success<typeof promiseListener>,
-  Awaited<ReturnType<SdkResonate["promises"]["registerListener"]>>
->>
+type _PromiseResolveError = Assert<
+  Equal<Effect.Error<typeof promiseResolve>, CoreExecutionError.ResonateSdkError>
+>
+type _TypedPromiseResolveError = Assert<
+  Equal<
+    Effect.Error<typeof typedPromiseResolve>,
+    CoreExecutionError.DurableProtocolError | CoreExecutionError.ResonateSdkError
+  >
+>
+type _PromiseCallback = Assert<
+  Equal<
+    Effect.Success<typeof promiseCallback>,
+    Awaited<ReturnType<SdkResonate["promises"]["registerCallback"]>>
+  >
+>
+type _PromiseListener = Assert<
+  Equal<
+    Effect.Success<typeof promiseListener>,
+    Awaited<ReturnType<SdkResonate["promises"]["registerListener"]>>
+  >
+>
 
 const scheduleCreate = client.schedules.create(
   "schedule-1",
@@ -305,40 +363,62 @@ type _ScheduleCreate = Assert<Equal<Effect.Success<typeof scheduleCreate>, Sched
 type _ScheduleGet = Assert<Equal<Effect.Success<typeof scheduleGet>, ScheduleRecord>>
 type _ScheduleDelete = Assert<Equal<Effect.Success<typeof scheduleDelete>, undefined>>
 
-type _ClientSurface = Assert<Equal<keyof ResonateClient.ResonateClientService,
-  | "register"
-  | "setDependency"
-  | "run"
-  | "rpc"
-  | "get"
-  | "schedule"
-  | "options"
-  | "promises"
-  | "schedules"
-  | "stop"
->>
-type _SdkClientSurface = Assert<Equal<keyof ResonateClient.ResonateClientService, keyof SdkResonate>>
-type _PromiseSurface = Assert<Equal<keyof ResonateClient.PromisesService, keyof SdkResonate["promises"]>>
-type _ScheduleSurface = Assert<Equal<keyof ResonateClient.SchedulesService, keyof SdkResonate["schedules"]>>
-type _HandleSurface = Assert<Equal<
-  keyof ResonateClient.ResonateHandle<unknown>,
-  keyof SdkResonateHandle<unknown>
->>
-type _RegisteredFunctionSurface = Assert<Equal<
-  keyof ResonateClient.ResonateFunc<typeof rawFunction>,
-  keyof SdkResonateFunc<typeof rawFunction>
->>
-type _ScheduleHandleSurface = Assert<Equal<keyof ResonateClient.ResonateSchedule, keyof SdkResonateSchedule>>
+type _ClientSurface = Assert<
+  Equal<
+    keyof ResonateClient.ResonateClientService,
+    | "register"
+    | "setDependency"
+    | "run"
+    | "rpc"
+    | "get"
+    | "schedule"
+    | "options"
+    | "promises"
+    | "schedules"
+    | "stop"
+  >
+>
+type _SdkClientSurface = Assert<
+  Equal<keyof ResonateClient.ResonateClientService, keyof SdkResonate>
+>
+type _PromiseSurface = Assert<
+  Equal<keyof ResonateClient.PromisesService, keyof SdkResonate["promises"]>
+>
+type _ScheduleSurface = Assert<
+  Equal<keyof ResonateClient.SchedulesService, keyof SdkResonate["schedules"]>
+>
+type _HandleSurface = Assert<
+  Equal<keyof ResonateClient.ResonateHandle<unknown>, keyof SdkResonateHandle<unknown>>
+>
+type _RegisteredFunctionSurface = Assert<
+  Equal<
+    keyof ResonateClient.ResonateFunc<typeof rawFunction>,
+    keyof SdkResonateFunc<typeof rawFunction>
+  >
+>
+type _ScheduleHandleSurface = Assert<
+  Equal<keyof ResonateClient.ResonateSchedule, keyof SdkResonateSchedule>
+>
 
 const accessorRun = ResonateClient.run("checkout-accessor-1", Checkout, { sku: "sku-1" })
-type _AccessorRunSuccess = Assert<Equal<Effect.Success<typeof accessorRun>, Effect.Success<typeof clientRun>>>
-type _AccessorRunError = Assert<Equal<Effect.Error<typeof accessorRun>, Effect.Error<typeof clientRun>>>
-type _AccessorRunRequirement = Assert<Equal<Effect.Services<typeof accessorRun>, ResonateClientService>>
+type _AccessorRunSuccess = Assert<
+  Equal<Effect.Success<typeof accessorRun>, Effect.Success<typeof clientRun>>
+>
+type _AccessorRunError = Assert<
+  Equal<Effect.Error<typeof accessorRun>, Effect.Error<typeof clientRun>>
+>
+type _AccessorRunRequirement = Assert<
+  Equal<Effect.Services<typeof accessorRun>, ResonateClientService>
+>
 
 const accessorPromise = ResonateClient.promises.get("promise-1")
 const accessorSchedule = ResonateClient.schedules.get("schedule-1")
-type _AccessorPromiseRequirement = Assert<Equal<Effect.Services<typeof accessorPromise>, ResonateClientService>>
-type _AccessorScheduleRequirement = Assert<Equal<Effect.Services<typeof accessorSchedule>, ResonateClientService>>
+type _AccessorPromiseRequirement = Assert<
+  Equal<Effect.Services<typeof accessorPromise>, ResonateClientService>
+>
+type _AccessorScheduleRequirement = Assert<
+  Equal<Effect.Services<typeof accessorSchedule>, ResonateClientService>
+>
 
 // @ts-expect-error generator-only begin methods are not fabricated by the async wrapper
 void client.beginRun
@@ -358,10 +438,14 @@ ResonateClient.layer(CheckoutFunctions, { drainTimeout: "30 seconds" })
 declare const context: WorkflowContext
 type _WorkflowContextSurface = Assert<Equal<keyof WorkflowContext, keyof SdkContext>>
 
-const runResult = context.run(Reserve, { sku: "sku-1" }, {
-  timeout: 1_000,
-  retryPolicy: new Exponential({ delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 })
-})
+const runResult = context.run(
+  Reserve,
+  { sku: "sku-1" },
+  {
+    timeout: 1_000,
+    retryPolicy: new Exponential({ delay: 10, factor: 2, maxRetries: 3, maxDelay: 100 })
+  }
+)
 const rpcResult = context.rpc(Reserve, { sku: "sku-1" })
 const currentTime = context.date.now()
 const random = context.math.random()
@@ -386,7 +470,12 @@ type _RawContextRun = Assert<Equal<Awaited<typeof rawContextRun>, { sku: string 
 type _RawContextRpc = Assert<Equal<Awaited<typeof rawContextRpc>, { sku: string }>>
 
 // @ts-expect-error versions are required
-Step.make({ name: "missing.version", input: Schema.Null, success: Schema.Null, failure: Schema.Null })
+Step.make({
+  name: "missing.version",
+  input: Schema.Null,
+  success: Schema.Null,
+  failure: Schema.Null
+})
 
 const RuntimeValidatedVersion = Step.make({
   name: "runtime.validated.version",
@@ -403,7 +492,9 @@ const RuntimeValidatedEvolution = Step.evolve(Reserve, {
   success: Schema.Null,
   failure: Schema.Null
 })
-type _RuntimeValidatedEvolution = Assert<Equal<Step.Step.Version<typeof RuntimeValidatedEvolution>, 1>>
+type _RuntimeValidatedEvolution = Assert<
+  Equal<Step.Step.Version<typeof RuntimeValidatedEvolution>, 1>
+>
 
 const LargeVersion = Step.make({
   name: "large.version",

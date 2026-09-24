@@ -15,8 +15,7 @@ import {
 type State = "Open" | "Draining" | "Abandoned"
 
 export type Completion<A, E> =
-  | { readonly _tag: "Completed"; readonly exit: Exit.Exit<A, E> }
-  | { readonly _tag: "Fenced" }
+  { readonly _tag: "Completed"; readonly exit: Exit.Exit<A, E> } | { readonly _tag: "Fenced" }
 
 interface Service {
   readonly supervise: <A, E, R>(
@@ -34,11 +33,7 @@ const fenced: Completion<never, never> = { _tag: "Fenced" }
 // captures its typed outcome as an Exit and cannot fail in the typed channel.
 type SupervisedExit = Exit.Exit<unknown, unknown>
 
-const make = Effect.fnUntraced(function*(): Effect.fn.Return<
-  Service,
-  never,
-  Scope.Scope
-> {
+const make = Effect.fnUntraced(function* (): Effect.fn.Return<Service, never, Scope.Scope> {
   const workers = yield* FiberSet.make<SupervisedExit, never>()
   const interruptors = yield* FiberSet.make<void, never>()
   const state = yield* Ref.make<State>("Open")
@@ -47,48 +42,51 @@ const make = Effect.fnUntraced(function*(): Effect.fn.Return<
   // Registered last so scope release fences before FiberSet finalizers interrupt workers.
   yield* Effect.addFinalizer(() => gate.withPermit(Ref.set(state, "Abandoned")))
 
-  const supervise = Effect.fnUntraced(function*<A, E, R>(
+  const supervise = Effect.fnUntraced(function* <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.fn.Return<Completion<A, E>, never, R> {
-    const admitted = yield* gate.withPermit(Effect.gen(function*() {
-      const current = yield* Ref.get(state)
-      if (current !== "Open") {
-        return Option.none()
-      }
+    const admitted = yield* gate.withPermit(
+      Effect.gen(function* () {
+        const current = yield* Ref.get(state)
+        if (current !== "Open") {
+          return Option.none()
+        }
 
-      const worker = yield* FiberSet.run(workers, Effect.exit(effect))
-      return Option.some(worker)
-    }))
+        const worker = yield* FiberSet.run(workers, Effect.exit(effect))
+        return Option.some(worker)
+      })
+    )
 
     return yield* Option.match(admitted, {
       onNone: () => Effect.succeed(fenced),
-      onSome: (worker) => Fiber.await(worker).pipe(
-        Effect.flatMap((workerExit) => Ref.get(state).pipe(
-          Effect.map((current): Completion<A, E> => {
-            if (current === "Abandoned") {
-              return fenced
-            }
-            return Match.valueTags(workerExit, {
-              Failure: ({ cause }) => ({
-                _tag: "Completed" as const,
-                exit: Exit.failCause(cause)
-              }),
-              Success: ({ value }) => ({ _tag: "Completed" as const, exit: value })
-            })
-          })
-        ))
-      )
+      onSome: (worker) =>
+        Fiber.await(worker).pipe(
+          Effect.flatMap((workerExit) =>
+            Ref.get(state).pipe(
+              Effect.map((current): Completion<A, E> => {
+                if (current === "Abandoned") {
+                  return fenced
+                }
+                return Match.valueTags(workerExit, {
+                  Failure: ({ cause }) => ({
+                    _tag: "Completed" as const,
+                    exit: Exit.failCause(cause)
+                  }),
+                  Success: ({ value }) => ({ _tag: "Completed" as const, exit: value })
+                })
+              })
+            )
+          )
+        )
     })
   })
 
   return {
     supervise,
     close: gate.withPermit(
-      Ref.update(state, (current) => current === "Open" ? "Draining" : current)
+      Ref.update(state, (current) => (current === "Open" ? "Draining" : current))
     ),
-    drain: FiberSet.awaitEmpty(workers).pipe(
-      Effect.andThen(FiberSet.awaitEmpty(interruptors))
-    ),
+    drain: FiberSet.awaitEmpty(workers).pipe(Effect.andThen(FiberSet.awaitEmpty(interruptors))),
     abandon: gate.withPermit(
       Ref.set(state, "Abandoned").pipe(
         Effect.andThen(FiberSet.run(interruptors, FiberSet.clear(workers))),

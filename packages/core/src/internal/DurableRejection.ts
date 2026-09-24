@@ -58,18 +58,17 @@ export const make = (
 const ownValue = (input: object, key: string): unknown =>
   Object.getOwnPropertyDescriptor(input, key)?.value
 
-const decodeCandidate = (input: unknown): unknown => input instanceof Error
-  ? {
-    _tag: ownValue(input, "_tag"),
-    executionId: ownValue(input, "executionId"),
-    definitionName: ownValue(input, "definitionName"),
-    definitionVersion: ownValue(input, "definitionVersion"),
-    reason: ownValue(input, "reason"),
-    ...(ownValue(input, "source") === undefined
-      ? {}
-      : { source: ownValue(input, "source") })
-  }
-  : input
+const decodeCandidate = (input: unknown): unknown =>
+  input instanceof Error
+    ? {
+        _tag: ownValue(input, "_tag"),
+        executionId: ownValue(input, "executionId"),
+        definitionName: ownValue(input, "definitionName"),
+        definitionVersion: ownValue(input, "definitionVersion"),
+        reason: ownValue(input, "reason"),
+        ...(ownValue(input, "source") === undefined ? {} : { source: ownValue(input, "source") })
+      }
+    : input
 
 export const decode = (input: unknown): Option.Option<ExecutionRejected> =>
   Option.map(

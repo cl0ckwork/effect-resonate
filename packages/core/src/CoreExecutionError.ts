@@ -3,28 +3,31 @@ import type { Resonate, ResonateHandle, ResonateSchedule } from "@resonatehq/sdk
 import { Schema } from "effect"
 
 type MethodNames<Service> = {
-  readonly [Name in keyof Service]-?: Service[Name] extends (...args: infer _Args) => infer _Return ? Name : never
-}[keyof Service] & string
+  readonly [Name in keyof Service]-?: Service[Name] extends (...args: infer _Args) => infer _Return
+    ? Name
+    : never
+}[keyof Service] &
+  string
 
 type ResonateOperation =
   | Extract<
-    MethodNames<Resonate>,
-    "register" | "setDependency" | "run" | "rpc" | "schedule" | "options" | "get" | "stop"
-  >
+      MethodNames<Resonate>,
+      "register" | "setDependency" | "run" | "rpc" | "schedule" | "options" | "get" | "stop"
+    >
   | `handle.${Extract<MethodNames<ResonateHandle<unknown>>, "result" | "done">}`
   | `schedule.${Extract<MethodNames<ResonateSchedule>, "delete">}`
   | `network.${Extract<MethodNames<Network>, "init">}`
   | `promises.${Extract<
-    MethodNames<Resonate["promises"]>,
-    | "get"
-    | "create"
-    | "createWithTask"
-    | "resolve"
-    | "reject"
-    | "cancel"
-    | "registerCallback"
-    | "registerListener"
-  >}`
+      MethodNames<Resonate["promises"]>,
+      | "get"
+      | "create"
+      | "createWithTask"
+      | "resolve"
+      | "reject"
+      | "cancel"
+      | "registerCallback"
+      | "registerListener"
+    >}`
   | `schedules.${Extract<MethodNames<Resonate["schedules"]>, "get" | "create" | "delete">}`
 
 const DefinitionKind = Schema.Literals(["Step", "Workflow"])
@@ -156,7 +159,13 @@ export class ExecutionRejected extends Schema.TaggedError<ExecutionRejected>()(
     executionId: Schema.String,
     definitionName: Schema.String,
     definitionVersion: Schema.Int,
-    reason: Schema.Literals(["Defect", "Interrupted", "CompositeCause", "ContractViolation", "Unknown"]),
+    reason: Schema.Literals([
+      "Defect",
+      "Interrupted",
+      "CompositeCause",
+      "ContractViolation",
+      "Unknown"
+    ]),
     source: Schema.optional(ExecutionRejectionSource)
   }
 ) {}

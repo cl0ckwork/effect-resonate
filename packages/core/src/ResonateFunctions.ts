@@ -34,30 +34,31 @@ export type Steps<Group> = Extract<Functions<Group>, Step.Any>
 /** Extracts the workflow union retained by a collection. */
 export type Workflows<Group> = Extract<Functions<Group>, Workflow.Any>
 
-type StepHandlers<Definition> = Definition extends Step.Any ? Step.Step.Implementation<Definition> : never
+type StepHandlers<Definition> = Definition extends Step.Any
+  ? Step.Step.Implementation<Definition>
+  : never
 
 type WorkflowHandlers<Definition> = Definition extends Workflow.Any
   ? Workflow.Workflow.Implementation<Definition>
   : never
 
 /** Computes the implementation services required by the collection. */
-export type Handlers<Group> =
-  | StepHandlers<Steps<Group>>
-  | WorkflowHandlers<Workflows<Group>>
+export type Handlers<Group> = StepHandlers<Steps<Group>> | WorkflowHandlers<Workflows<Group>>
 
 const makeGroup = <Function extends AnyFunction>(
   functions: ReadonlyArray<Function>
-): ResonateFunctions<Function> => Object.freeze({
-  [TypeId]: TypeId,
-  functions: Object.freeze([...functions]),
-  add: <const Added extends ReadonlyArray<AnyFunction>>(...added: Added) =>
-    makeGroup<Function | Added[number]>([...functions, ...added]),
-  merge: <const Groups extends ReadonlyArray<Any>>(...groups: Groups) =>
-    makeGroup<Function | Functions<Groups[number]>>(([
-      ...functions,
-      ...groups.flatMap((group) => group.functions)
-    ]) as unknown as ReadonlyArray<Function | Functions<Groups[number]>>)
-})
+): ResonateFunctions<Function> =>
+  Object.freeze({
+    [TypeId]: TypeId,
+    functions: Object.freeze([...functions]),
+    add: <const Added extends ReadonlyArray<AnyFunction>>(...added: Added) =>
+      makeGroup<Function | Added[number]>([...functions, ...added]),
+    merge: <const Groups extends ReadonlyArray<Any>>(...groups: Groups) =>
+      makeGroup<Function | Functions<Groups[number]>>([
+        ...functions,
+        ...groups.flatMap((group) => group.functions)
+      ] as unknown as ReadonlyArray<Function | Functions<Groups[number]>>)
+  })
 
 /** Creates a flat function collection from steps and workflows. */
 export const make = <const Functions extends ReadonlyArray<AnyFunction>>(

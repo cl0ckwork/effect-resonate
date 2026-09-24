@@ -28,75 +28,89 @@ const expectSuccess = <Success, Error>(options: {
   readonly assertion: string
   readonly executionIds: ReadonlyArray<string>
   readonly exit: Exit.Exit<Success, Error>
-}): Effect.Effect<Success, ConformanceFailure, NetworkHarness> => Exit.match(options.exit, {
-  onFailure: () => assertConformance({
-    scenario: options.scenario,
-    condition: false,
-    assertion: options.assertion,
-    executionIds: options.executionIds
-  }).pipe(Effect.andThen(Effect.die("unreachable"))),
-  onSuccess: Effect.succeed
-})
-
-const isTagged = (options: { readonly value: unknown; readonly tag: string }): boolean => Match.value(options.value).pipe(
-  Match.when({ _tag: options.tag }, () => true),
-  Match.orElse(() => false)
-)
-
-export const completion: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
-  const harness = yield* NetworkHarness
-  const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
-  const scenario = scenarioNames.completion
-  const executionId = yield* harness.nextExecutionId({ scenario })
-  const executionIds = [executionId]
-  const Uppercase = Step.make({
-    name: `testing.${executionId}.uppercase`,
-    version: 1,
-    input: Schema.String,
-    success: Schema.String,
-    failure: Schema.Never
+}): Effect.Effect<Success, ConformanceFailure, NetworkHarness> =>
+  Exit.match(options.exit, {
+    onFailure: () =>
+      assertConformance({
+        scenario: options.scenario,
+        condition: false,
+        assertion: options.assertion,
+        executionIds: options.executionIds
+      }).pipe(Effect.andThen(Effect.die("unreachable"))),
+    onSuccess: Effect.succeed
   })
-  const Echo = Workflow.make({
-    name: `testing.${executionId}.echo`,
-    version: 1,
-    input: Schema.String,
-    success: Schema.String,
-    failure: Schema.Never
-  })
-  const Functions = ResonateFunctions.make(Uppercase, Echo)
-  const ClientLive = ResonateClient.layer({
-    functions: Functions,
-    drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.mergeAll(
-    NetworkLive,
-    Uppercase.toLayer((input) => Effect.succeed(input.toUpperCase())),
-    Echo.toLayer(async (context, input) => context.run(Uppercase, input))
-  )))
-  const output = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const exit = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const handle = yield* ResonateClient.run(executionId, Echo, "portable")
-        return yield* handle.result()
+
+const isTagged = (options: { readonly value: unknown; readonly tag: string }): boolean =>
+  Match.value(options.value).pipe(
+    Match.when({ _tag: options.tag }, () => true),
+    Match.orElse(() => false)
+  )
+
+export const completion: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> =
+  Effect.gen(function* () {
+    const harness = yield* NetworkHarness
+    const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
+    const scenario = scenarioNames.completion
+    const executionId = yield* harness.nextExecutionId({ scenario })
+    const executionIds = [executionId]
+    const Uppercase = Step.make({
+      name: `testing.${executionId}.uppercase`,
+      version: 1,
+      input: Schema.String,
+      success: Schema.String,
+      failure: Schema.Never
+    })
+    const Echo = Workflow.make({
+      name: `testing.${executionId}.echo`,
+      version: 1,
+      input: Schema.String,
+      success: Schema.String,
+      failure: Schema.Never
+    })
+    const Functions = ResonateFunctions.make(Uppercase, Echo)
+    const ClientLive = ResonateClient.layer({
+      functions: Functions,
+      drainTimeout: harness.timing.scenarioTimeout
+    }).pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          NetworkLive,
+          Uppercase.toLayer((input) => Effect.succeed(input.toUpperCase())),
+          Echo.toLayer(async (context, input) => context.run(Uppercase, input))
+        )
+      )
+    )
+    const output = yield* Effect.scoped(
+      Effect.gen(function* () {
+        const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+        const exit = yield* worker.runExit({
+          effect: Effect.gen(function* () {
+            const handle = yield* ResonateClient.run(executionId, Echo, "portable")
+            return yield* handle.result()
+          })
+        })
+        return yield* expectSuccess({
+          scenario,
+          assertion: "a registered workflow and Effect step must complete",
+          executionIds,
+          exit
+        })
       })
-    })
-    return yield* expectSuccess({
+    )
+    yield* assertConformance({
       scenario,
-      assertion: "a registered workflow and Effect step must complete",
-      executionIds,
-      exit
+      condition: output === "PORTABLE",
+      assertion: "completion must preserve the decoded step result",
+      executionIds
     })
-  }))
-  yield* assertConformance({
-    scenario,
-    condition: output === "PORTABLE",
-    assertion: "completion must preserve the decoded step result",
-    executionIds
+    return yield* Effect.void
   })
-  return yield* Effect.void
-})
 
-export const duplicateActivation: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
+export const duplicateActivation: Effect.Effect<
+  void,
+  ConformanceFailure,
+  NetworkHarness | ResonateNetwork
+> = Effect.gen(function* () {
   const harness = yield* NetworkHarness
   const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
   const scenario = scenarioNames.duplicateActivation
@@ -113,59 +127,72 @@ export const duplicateActivation: Effect.Effect<void, ConformanceFailure, Networ
   const ClientLive = ResonateClient.layer({
     functions: Functions,
     drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.merge(
-    NetworkLive,
-    First.toLayer(async (context, input) => {
-      await context.promise(Schema.Null)
-      return Result.succeed(input)
-    })
-  )))
+  }).pipe(
+    Layer.provide(
+      Layer.merge(
+        NetworkLive,
+        First.toLayer(async (context, input) => {
+          await context.promise(Schema.Null)
+          return Result.succeed(input)
+        })
+      )
+    )
+  )
 
-  const outputs = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const activation = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const first = yield* ResonateClient.run(executionId, First, "first")
-        const duplicate = yield* ResonateClient.run(executionId, First, "second")
-        return [first, duplicate] as const
+  const outputs = yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      const activation = yield* worker.runExit({
+        effect: Effect.gen(function* () {
+          const first = yield* ResonateClient.run(executionId, First, "first")
+          const duplicate = yield* ResonateClient.run(executionId, First, "second")
+          return [first, duplicate] as const
+        })
+      })
+      const [first, duplicate] = yield* expectSuccess({
+        scenario,
+        assertion: "both same-id activations must return handles",
+        executionIds,
+        exit: activation
+      })
+      yield* waitFor({
+        scenario,
+        assertion: "the first activation must create its durable wait",
+        executionIds,
+        poll: worker
+          .runExit({
+            effect: ResonateClient.promises.get(`${executionId}:0`)
+          })
+          .pipe(
+            Effect.map(
+              Exit.match({
+                onFailure: () => Option.none(),
+                onSuccess: (record) =>
+                  record.state === "pending" ? Option.some(record) : Option.none()
+              })
+            )
+          )
+      })
+      const settlement = yield* worker.runExit({
+        effect: ResonateClient.promises.resolve(`${executionId}:0`, Schema.Null, null)
+      })
+      yield* expectSuccess({
+        scenario,
+        assertion: "the duplicate activation's shared durable wait must resolve",
+        executionIds,
+        exit: settlement
+      })
+      const result = yield* worker.runExit({
+        effect: Effect.all([first.result(), duplicate.result()])
+      })
+      return yield* expectSuccess({
+        scenario,
+        assertion: "both same-id handles must observe the original result",
+        executionIds,
+        exit: result
       })
     })
-    const [first, duplicate] = yield* expectSuccess({
-      scenario,
-      assertion: "both same-id activations must return handles",
-      executionIds,
-      exit: activation
-    })
-    yield* waitFor({
-      scenario,
-      assertion: "the first activation must create its durable wait",
-      executionIds,
-      poll: worker.runExit({
-        effect: ResonateClient.promises.get(`${executionId}:0`)
-      }).pipe(Effect.map(Exit.match({
-        onFailure: () => Option.none(),
-        onSuccess: (record) => record.state === "pending" ? Option.some(record) : Option.none()
-      })))
-    })
-    const settlement = yield* worker.runExit({
-      effect: ResonateClient.promises.resolve(`${executionId}:0`, Schema.Null, null)
-    })
-    yield* expectSuccess({
-      scenario,
-      assertion: "the duplicate activation's shared durable wait must resolve",
-      executionIds,
-      exit: settlement
-    })
-    const result = yield* worker.runExit({
-      effect: Effect.all([first.result(), duplicate.result()])
-    })
-    return yield* expectSuccess({
-      scenario,
-      assertion: "both same-id handles must observe the original result",
-      executionIds,
-      exit: result
-    })
-  }))
+  )
 
   yield* assertConformance({
     scenario,
@@ -180,7 +207,7 @@ export const failureClassification: Effect.Effect<
   void,
   ConformanceFailure,
   NetworkHarness | ResonateNetwork
-> = Effect.gen(function*() {
+> = Effect.gen(function* () {
   const harness = yield* NetworkHarness
   const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
   const scenario = scenarioNames.failureClassification
@@ -220,37 +247,48 @@ export const failureClassification: Effect.Effect<
   const ClientLive = ResonateClient.layer({
     functions: Functions,
     drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.mergeAll(
-    NetworkLive,
-    Decline.toLayer(async () => Result.fail({ reason: "declined" })),
-    Broken.toLayer(() => Effect.die(new TypeError("private defect detail"))),
-    Defect.toLayer(async (context) => context.run(Broken, null)),
-    Validated.toLayer(async (_context, input) => Result.succeed(input))
-  )))
+  }).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        NetworkLive,
+        Decline.toLayer(async () => Result.fail({ reason: "declined" })),
+        Broken.toLayer(() => Effect.die(new TypeError("private defect detail"))),
+        Defect.toLayer(async (context) => context.run(Broken, null)),
+        Validated.toLayer(async (_context, input) => Result.succeed(input))
+      )
+    )
+  )
 
-  const [checked, defect, invalid] = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const exit = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const checkedHandle = yield* ResonateClient.run(checkedId, Decline, null)
-        const defectHandle = yield* ResonateClient.run(defectId, Defect, null)
-        const checked = yield* Effect.flip(checkedHandle.result())
-        const defect = yield* Effect.flip(defectHandle.result())
-        const rawOptions = yield* ResonateClient.options({ version: Validated.version })
-        const rawHandle = yield* ResonateClient.run(invalidId, Validated.name, { malformed: true }, rawOptions)
-        yield* rawHandle.result()
-        const invalidHandle = yield* ResonateClient.get(invalidId, Validated)
-        const invalid = yield* Effect.flip(invalidHandle.result())
-        return [checked, defect, invalid] as const
+  const [checked, defect, invalid] = yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      const exit = yield* worker.runExit({
+        effect: Effect.gen(function* () {
+          const checkedHandle = yield* ResonateClient.run(checkedId, Decline, null)
+          const defectHandle = yield* ResonateClient.run(defectId, Defect, null)
+          const checked = yield* Effect.flip(checkedHandle.result())
+          const defect = yield* Effect.flip(defectHandle.result())
+          const rawOptions = yield* ResonateClient.options({ version: Validated.version })
+          const rawHandle = yield* ResonateClient.run(
+            invalidId,
+            Validated.name,
+            { malformed: true },
+            rawOptions
+          )
+          yield* rawHandle.result()
+          const invalidHandle = yield* ResonateClient.get(invalidId, Validated)
+          const invalid = yield* Effect.flip(invalidHandle.result())
+          return [checked, defect, invalid] as const
+        })
+      })
+      return yield* expectSuccess({
+        scenario,
+        assertion: "checked failures and defects must both remain observable",
+        executionIds,
+        exit
       })
     })
-    return yield* expectSuccess({
-      scenario,
-      assertion: "checked failures and defects must both remain observable",
-      executionIds,
-      exit
-    })
-  }))
+  )
 
   yield* assertConformance({
     scenario,
@@ -276,7 +314,11 @@ export const failureClassification: Effect.Effect<
   return yield* Effect.void
 })
 
-export const cancellation: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
+export const cancellation: Effect.Effect<
+  void,
+  ConformanceFailure,
+  NetworkHarness | ResonateNetwork
+> = Effect.gen(function* () {
   const harness = yield* NetworkHarness
   const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
   const scenario = scenarioNames.cancellation
@@ -297,36 +339,42 @@ export const cancellation: Effect.Effect<void, ConformanceFailure, NetworkHarnes
   const ClientLive = ResonateClient.layer({
     functions: Functions,
     drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.merge(
-    NetworkLive,
-    Wait.toLayer(async (context) => {
-      const durable = context.promise(Schema.String)
-      notifyWaiting()
-      return Result.succeed(await durable)
-    })
-  )))
-  const output = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const exit = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const handle = yield* ResonateClient.run(executionId, Wait, null)
-        const localWaiter = yield* handle.result().pipe(Effect.forkChild)
-        yield* Effect.promise(() => waiting)
-        yield* Fiber.interrupt(localWaiter)
-        yield* ResonateClient.promises.resolve(`${executionId}:0`, Schema.String, "still-running").pipe(
-          Effect.retry(Schedule.spaced(harness.timing.pollInterval))
-        )
-        const attached = yield* ResonateClient.get(executionId, Wait)
-        return yield* attached.result()
+  }).pipe(
+    Layer.provide(
+      Layer.merge(
+        NetworkLive,
+        Wait.toLayer(async (context) => {
+          const durable = context.promise(Schema.String)
+          notifyWaiting()
+          return Result.succeed(await durable)
+        })
+      )
+    )
+  )
+  const output = yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      const exit = yield* worker.runExit({
+        effect: Effect.gen(function* () {
+          const handle = yield* ResonateClient.run(executionId, Wait, null)
+          const localWaiter = yield* handle.result().pipe(Effect.forkChild)
+          yield* Effect.promise(() => waiting)
+          yield* Fiber.interrupt(localWaiter)
+          yield* ResonateClient.promises
+            .resolve(`${executionId}:0`, Schema.String, "still-running")
+            .pipe(Effect.retry(Schedule.spaced(harness.timing.pollInterval)))
+          const attached = yield* ResonateClient.get(executionId, Wait)
+          return yield* attached.result()
+        })
+      })
+      return yield* expectSuccess({
+        scenario,
+        assertion: "interrupting a local waiter must not cancel durable execution",
+        executionIds,
+        exit
       })
     })
-    return yield* expectSuccess({
-      scenario,
-      assertion: "interrupting a local waiter must not cancel durable execution",
-      executionIds,
-      exit
-    })
-  }))
+  )
   yield* assertConformance({
     scenario,
     condition: output === "still-running",
@@ -336,139 +384,155 @@ export const cancellation: Effect.Effect<void, ConformanceFailure, NetworkHarnes
   return yield* Effect.void
 })
 
-export const timeout: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
-  const harness = yield* NetworkHarness
-  const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
-  const scenario = scenarioNames.timeout
-  const capability = harness.capabilities.timeout
-  if (capability === undefined) {
-    return yield* fail({
-      scenario,
-      issue: "MissingCapability",
-      assertion: "the provider must declare timeout support before registering this scenario"
+export const timeout: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> =
+  Effect.gen(function* () {
+    const harness = yield* NetworkHarness
+    const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
+    const scenario = scenarioNames.timeout
+    const capability = harness.capabilities.timeout
+    if (capability === undefined) {
+      return yield* fail({
+        scenario,
+        issue: "MissingCapability",
+        assertion: "the provider must declare timeout support before registering this scenario"
+      })
+    }
+    const executionId = yield* harness.nextExecutionId({ scenario })
+    const executionIds = [executionId, `${executionId}:0`]
+    const Wait = Workflow.make({
+      name: `testing.${executionId}.timeout`,
+      version: 1,
+      input: Schema.Null,
+      success: Schema.String,
+      failure: Schema.Never
     })
-  }
-  const executionId = yield* harness.nextExecutionId({ scenario })
-  const executionIds = [executionId, `${executionId}:0`]
-  const Wait = Workflow.make({
-    name: `testing.${executionId}.timeout`,
-    version: 1,
-    input: Schema.Null,
-    success: Schema.String,
-    failure: Schema.Never
-  })
-  const Functions = ResonateFunctions.make(Wait)
-  const ClientLive = ResonateClient.layer({
-    functions: Functions,
-    drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.merge(
-    NetworkLive,
-    Wait.toLayer(async (context) => Result.succeed(await context.promise(Schema.String)))
-  )))
+    const Functions = ResonateFunctions.make(Wait)
+    const ClientLive = ResonateClient.layer({
+      functions: Functions,
+      drainTimeout: harness.timing.scenarioTimeout
+    }).pipe(
+      Layer.provide(
+        Layer.merge(
+          NetworkLive,
+          Wait.toLayer(async (context) => Result.succeed(await context.promise(Schema.String)))
+        )
+      )
+    )
 
-  const [failure, state] = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const exit = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const handle = yield* ResonateClient.run(executionId, Wait, null, {
-          timeout: capability.invocationTimeoutMillis
+    const [failure, state] = yield* Effect.scoped(
+      Effect.gen(function* () {
+        const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+        const exit = yield* worker.runExit({
+          effect: Effect.gen(function* () {
+            const handle = yield* ResonateClient.run(executionId, Wait, null, {
+              timeout: capability.invocationTimeoutMillis
+            })
+            const failure = yield* Effect.flip(handle.result())
+            yield* ResonateClient.promises.resolve(`${executionId}:0`, Schema.String, "late")
+            const record = yield* ResonateClient.promises.get(executionId)
+            return [failure, record.state] as const
+          })
         })
-        const failure = yield* Effect.flip(handle.result())
-        yield* ResonateClient.promises.resolve(`${executionId}:0`, Schema.String, "late")
-        const record = yield* ResonateClient.promises.get(executionId)
-        return [failure, record.state] as const
+        return yield* expectSuccess({
+          scenario,
+          assertion: "a durable timeout must settle within the harness deadline",
+          executionIds,
+          exit
+        })
       })
-    })
-    return yield* expectSuccess({
+    )
+
+    yield* assertConformance({
       scenario,
-      assertion: "a durable timeout must settle within the harness deadline",
-      executionIds,
-      exit
+      condition: isTagged({ value: failure, tag: "@effect-resonate/core/ResonateSdkError" }),
+      assertion: "timeout must remain an SDK execution failure rather than a domain failure",
+      executionIds
     })
-  }))
-
-  yield* assertConformance({
-    scenario,
-    condition: isTagged({ value: failure, tag: "@effect-resonate/core/ResonateSdkError" }),
-    assertion: "timeout must remain an SDK execution failure rather than a domain failure",
-    executionIds
+    yield* assertConformance({
+      scenario,
+      condition: state === "rejected_timedout",
+      assertion: "late resolution must not replace the durable timeout state",
+      executionIds
+    })
+    return yield* Effect.void
   })
-  yield* assertConformance({
-    scenario,
-    condition: state === "rejected_timedout",
-    assertion: "late resolution must not replace the durable timeout state",
-    executionIds
-  })
-  return yield* Effect.void
-})
 
-export const lifecycle: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
-  const harness = yield* NetworkHarness
-  const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
-  const scenario = scenarioNames.lifecycle
-  const executionId = yield* harness.nextExecutionId({ scenario })
-  const executionIds = [executionId]
-  const Ping = Workflow.make({
-    name: `testing.${executionId}.ping`,
-    version: 1,
-    input: Schema.Null,
-    success: Schema.String,
-    failure: Schema.Never
-  })
-  const Functions = ResonateFunctions.make(Ping)
-  const ClientLive = ResonateClient.layer({
-    functions: Functions,
-    drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.merge(
-    NetworkLive,
-    Ping.toLayer(async () => Result.succeed("pong"))
-  )))
+export const lifecycle: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> =
+  Effect.gen(function* () {
+    const harness = yield* NetworkHarness
+    const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
+    const scenario = scenarioNames.lifecycle
+    const executionId = yield* harness.nextExecutionId({ scenario })
+    const executionIds = [executionId]
+    const Ping = Workflow.make({
+      name: `testing.${executionId}.ping`,
+      version: 1,
+      input: Schema.Null,
+      success: Schema.String,
+      failure: Schema.Never
+    })
+    const Functions = ResonateFunctions.make(Ping)
+    const ClientLive = ResonateClient.layer({
+      functions: Functions,
+      drainTimeout: harness.timing.scenarioTimeout
+    }).pipe(
+      Layer.provide(
+        Layer.merge(
+          NetworkLive,
+          Ping.toLayer(async () => Result.succeed("pong"))
+        )
+      )
+    )
 
-  yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const stopped = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        yield* ResonateClient.stop()
-        yield* ResonateClient.stop()
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+        const stopped = yield* worker.runExit({
+          effect: Effect.gen(function* () {
+            yield* ResonateClient.stop()
+            yield* ResonateClient.stop()
+          })
+        })
+        yield* expectSuccess({
+          scenario,
+          assertion: "explicit worker stop must be idempotent",
+          executionIds,
+          exit: stopped
+        })
       })
-    })
-    yield* expectSuccess({
-      scenario,
-      assertion: "explicit worker stop must be idempotent",
-      executionIds,
-      exit: stopped
-    })
-  }))
+    )
 
-  const output = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const exit = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const handle = yield* ResonateClient.run(executionId, Ping, null)
-        return yield* handle.result()
+    const output = yield* Effect.scoped(
+      Effect.gen(function* () {
+        const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+        const exit = yield* worker.runExit({
+          effect: Effect.gen(function* () {
+            const handle = yield* ResonateClient.run(executionId, Ping, null)
+            return yield* handle.result()
+          })
+        })
+        return yield* expectSuccess({
+          scenario,
+          assertion: "a worker must start cleanly after a prior worker stopped repeatedly",
+          executionIds,
+          exit
+        })
       })
-    })
-    return yield* expectSuccess({
+    )
+    yield* assertConformance({
       scenario,
-      assertion: "a worker must start cleanly after a prior worker stopped repeatedly",
-      executionIds,
-      exit
+      condition: output === "pong",
+      assertion: "repeated worker lifecycle must leave the isolated state usable",
+      executionIds
     })
-  }))
-  yield* assertConformance({
-    scenario,
-    condition: output === "pong",
-    assertion: "repeated worker lifecycle must leave the isolated state usable",
-    executionIds
+    return yield* Effect.void
   })
-  return yield* Effect.void
-})
 
 export const invalidNonDurableAwait: Effect.Effect<
   void,
   ConformanceFailure,
   NetworkHarness | ResonateNetwork
-> = Effect.gen(function*() {
+> = Effect.gen(function* () {
   const harness = yield* NetworkHarness
   const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
   const scenario = scenarioNames.invalidNonDurableAwait
@@ -508,52 +572,69 @@ export const invalidNonDurableAwait: Effect.Effect<
   const ClientLive = ResonateClient.layer({
     functions: Functions,
     drainTimeout: harness.timing.scenarioTimeout
-  }).pipe(Layer.provide(Layer.mergeAll(
-    NetworkLive,
-    Late.toLayer(() => Effect.sync(() => {
-      attempts.push(null)
-      return null
-    })),
-    Invalid.toLayer(async (context) => {
-      context.promise(Schema.Null)
-      await ordinaryWait
-      try {
-        return await context.run(Late, null)
-      } catch {
-        notifyRejected()
-        return Result.succeed(null)
-      }
-    })
-  )))
+  }).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        NetworkLive,
+        Late.toLayer(() =>
+          Effect.sync(() => {
+            attempts.push(null)
+            return null
+          })
+        ),
+        Invalid.toLayer(async (context) => {
+          context.promise(Schema.Null)
+          await ordinaryWait
+          try {
+            return await context.run(Late, null)
+          } catch {
+            notifyRejected()
+            return Result.succeed(null)
+          }
+        })
+      )
+    )
+  )
 
-  yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const running = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        yield* ResonateClient.run(executionId, Invalid, null)
-        yield* Effect.promise(() => lateOperationRejected)
+  yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      const running = yield* worker
+        .runExit({
+          effect: Effect.gen(function* () {
+            yield* ResonateClient.run(executionId, Invalid, null)
+            yield* Effect.promise(() => lateOperationRejected)
+          })
+        })
+        .pipe(Effect.forkScoped)
+      yield* waitFor({
+        scenario,
+        assertion: "the durable wait must suspend and close the workflow execution pass",
+        executionIds,
+        poll: worker
+          .runExit({
+            effect: ResonateClient.promises.get(`${executionId}:0`)
+          })
+          .pipe(
+            Effect.map(
+              Exit.match({
+                onFailure: () => Option.none(),
+                onSuccess: (record) =>
+                  record.state === "pending" ? Option.some(record) : Option.none()
+              })
+            )
+          )
       })
-    }).pipe(Effect.forkScoped)
-    yield* waitFor({
-      scenario,
-      assertion: "the durable wait must suspend and close the workflow execution pass",
-      executionIds,
-      poll: worker.runExit({
-        effect: ResonateClient.promises.get(`${executionId}:0`)
-      }).pipe(Effect.map(Exit.match({
-        onFailure: () => Option.none(),
-        onSuccess: (record) => record.state === "pending" ? Option.some(record) : Option.none()
-      })))
+      yield* Effect.sync(releaseOrdinaryWait)
+      const exit = yield* Fiber.join(running)
+      yield* expectSuccess({
+        scenario,
+        assertion: "the SDK closed-context guard must reject the late durable operation",
+        executionIds,
+        exit
+      })
     })
-    yield* Effect.sync(releaseOrdinaryWait)
-    const exit = yield* Fiber.join(running)
-    yield* expectSuccess({
-      scenario,
-      assertion: "the SDK closed-context guard must reject the late durable operation",
-      executionIds,
-      exit
-    })
-  }))
+  )
 
   yield* assertConformance({
     scenario,

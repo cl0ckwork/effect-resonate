@@ -14,11 +14,7 @@ provider-neutral while allowing each provider to own its Layer and lifecycle.
 
 ```ts
 import { it } from "@effect/vitest"
-import {
-  completion,
-  duplicateActivation,
-  makeNetworkHarnessLayer
-} from "@effect-resonate/testing"
+import { completion, duplicateActivation, makeNetworkHarnessLayer } from "@effect-resonate/testing"
 import { Effect, Layer } from "effect"
 import { NetworkLive } from "./NetworkLive.js"
 
@@ -43,9 +39,7 @@ const HarnessLive = makeNetworkHarnessLayer({
 const TestLive = Layer.merge(NetworkLive, HarnessLive)
 
 it.live("completion", () => completion.pipe(Effect.provide(TestLive)))
-it.live("duplicate activation", () =>
-  duplicateActivation.pipe(Effect.provide(TestLive))
-)
+it.live("duplicate activation", () => duplicateActivation.pipe(Effect.provide(TestLive)))
 ```
 
 Use `it.live` because network and SDK timing must use the live Effect clock.
