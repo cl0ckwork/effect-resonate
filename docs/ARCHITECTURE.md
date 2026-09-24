@@ -74,5 +74,4 @@ business side effect but before its checkpoint and assert one business row for
 the repeated stable step ID; test bounded drain, lease expiry, and replay after
 old-worker fencing; test a late external effect after durable timeout; and test
 definition/version conflicts and a lost activation response against PostgreSQL.
-These cases should be completed before treating the historical U7 spec as
-fully verified.
+These cases remain part of the PostgreSQL acceptance work.

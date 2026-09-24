@@ -15,5 +15,5 @@ schemas at actual trust boundaries. Add a codec only when a value needs a
 deliberate persistence or wire representation.
 
 Preserve Resonate semantics. The library is a small Effect-facing wrapper, not a
-parallel workflow framework. See `docs/BRAINSTORM.md`
-for the reasoning and current programming-model exploration.
+parallel workflow framework. See `docs/ARCHITECTURE.md` for the current
+execution model and failure boundaries.
