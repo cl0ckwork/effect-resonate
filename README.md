@@ -43,10 +43,13 @@ Run the checks and tests with:
 ```sh
 pnpm check
 pnpm test
+pnpm format:check origin/main
 ```
 
 `pnpm test` includes the Docker-backed Postgres integration suite. Set
 `SKIP_POSTGRES_TESTS=true` to omit that suite when Docker is unavailable.
+For a stacked PR, replace `origin/main` with that PR's base branch. Run
+`pnpm format <base-ref>` to format the changed files before pushing.
 
 ## Project documents
 

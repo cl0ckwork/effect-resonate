@@ -5,6 +5,8 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "lint": "eslint .",
+    "format:check": "node scripts/format-changed.mjs --check",
+    "format": "node scripts/format-changed.mjs --write",
     "typecheck": "pnpm -r --if-present typecheck",
     "test:types": "pnpm -r --if-present test:types",
     "test": "node --test tests/*.test.mjs && pnpm -r --if-present test",
@@ -26,6 +28,7 @@
     "eslint": "10.10.0",
     "globals": "17.12.0",
     "lefthook": "^2.1.14",
+    "prettier": "3.9.9",
     "publint": "^0.3.24",
     "typescript-eslint": "8.70.0"
   }
