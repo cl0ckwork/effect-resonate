@@ -16,6 +16,10 @@ environment, publish core at the reviewed version. Publishing is irreversible;
 do not run this step as part of a PR check. The manual bootstrap does not
 receive OIDC provenance; later staged releases do.
 
+The publishing account must own or have publish access to the `effect-resonate`
+npm organization, which owns the `@effect-resonate` scope. Create the
+organization on npm's free public-packages plan if the scope does not exist.
+
 After the reviewed version PR has merged, verify the core manifest no longer
 has `0.0.0`. Run the publish command if that version is not already live on npm:
 
@@ -27,6 +31,9 @@ pnpm test
 ```
 
 The automated staging script waits until the core package name exists on npm.
+The release workflow checks for an unpublished version before requesting access
+to the protected `npm` environment; pushes with no version to stage finish
+without a deployment approval.
 
 After core exists on npm, configure its GitHub Actions trusted publisher:
 
@@ -34,6 +41,13 @@ After core exists on npm, configure its GitHub Actions trusted publisher:
 - Workflow filename: `release.yml`
 - Environment name: `npm`
 - Allowed action: `npm stage publish` only
+
+An authenticated maintainer can configure this through npm CLI 11.15 or newer:
+
+```sh
+npm trust github @effect-resonate/core --file release.yml \
+  --repo cl0ckwork/effect-resonate --env npm --allow-stage-publish
+```
 
 Enable GitHub Actions' **Allow GitHub Actions to create and approve pull
 requests** setting so the Changesets version job can open its release PR.

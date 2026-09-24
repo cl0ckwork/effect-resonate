@@ -35,8 +35,10 @@ const fixture = (context, version = "0.1.0") => {
   )
   const calls = join(root, "calls.jsonl")
   const summary = join(root, "summary.md")
+  const output = join(root, "output.txt")
   writeFileSync(calls, "")
   writeFileSync(summary, "")
+  writeFileSync(output, "")
   const npm = join(bin, "npm")
   writeFileSync(
     npm,
@@ -73,13 +75,15 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
   )
   chmodSync(npm, 0o755)
 
-  return (scenario) => {
-    const result = spawnSync(process.execPath, [join(scripts, "stage-packages.mjs")], {
+  return (scenario, checkOnly = false) => {
+    const args = [join(scripts, "stage-packages.mjs"), ...(checkOnly ? ["--check"] : [])]
+    const result = spawnSync(process.execPath, args, {
       encoding: "utf8",
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         CALL_LOG: calls,
+        GITHUB_OUTPUT: output,
         GITHUB_STEP_SUMMARY: summary,
         SCENARIO: scenario
       }
@@ -88,9 +92,40 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line))
-    return { ...result, invoked, summary: readFileSync(summary, "utf8") }
+    return {
+      ...result,
+      invoked,
+      output: readFileSync(output, "utf8"),
+      summary: readFileSync(summary, "utf8")
+    }
   }
 }
+
+test("stage check skips the protected deployment when the version is live", (context) => {
+  const result = fixture(context)("already-live", true)
+  assert.equal(result.status, 0)
+  assert.equal(result.output, "should_stage=false\n")
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
+})
+
+test("stage check requests a protected deployment for an unpublished version", (context) => {
+  const result = fixture(context)("new-version", true)
+  assert.equal(result.status, 0)
+  assert.equal(result.output, "should_stage=true\n")
+  assert.equal(
+    result.invoked.some(([command]) => command === "stage"),
+    false
+  )
+})
+
+test("stage check waits for the first manual npm publish", (context) => {
+  const result = fixture(context)("missing-package", true)
+  assert.equal(result.status, 0)
+  assert.equal(result.output, "should_stage=false\n")
+})
 
 test("staging waits until core exists on npm", (context) => {
   const result = fixture(context)("missing-package")

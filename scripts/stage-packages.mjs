@@ -11,6 +11,7 @@ const packages = packagePaths
     ...JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8"))
   }))
   .filter(({ private: isPrivate }) => !isPrivate)
+const checkOnly = process.argv.includes("--check")
 
 const npmView = (spec) => {
   try {
@@ -34,21 +35,34 @@ if (missingPackages.length > 0) {
   console.log(
     `Skipping automated staging until ${missingPackages[0].name} has been bootstrapped on npm.`
   )
+}
+
+const unpublishedPackages =
+  missingPackages.length > 0
+    ? []
+    : packages.filter(({ name, version }) => {
+        if (version === "0.0.0") {
+          console.log(
+            `Skipping ${name}@${version}; it has not received its first Changesets version bump.`
+          )
+          return false
+        }
+        if (npmView(`${name}@${version}`) !== undefined) {
+          console.log(`${name}@${version} is already published.`)
+          return false
+        }
+        return true
+      })
+
+if (checkOnly) {
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `should_stage=${unpublishedPackages.length > 0}\n`)
+  }
   process.exit(0)
 }
 
 const staged = []
-for (const { directory, name, version } of packages) {
-  if (version === "0.0.0") {
-    console.log(
-      `Skipping ${name}@${version}; it has not received its first Changesets version bump.`
-    )
-    continue
-  }
-  if (npmView(`${name}@${version}`) !== undefined) {
-    console.log(`${name}@${version} is already published.`)
-    continue
-  }
+for (const { directory, name, version } of unpublishedPackages) {
   try {
     const output = execFileSync(
       "npm",
