@@ -223,25 +223,22 @@ that tracked and parked per-delivery counts are zero after release.
 
 Use an Effect service/Layer rather than a singleton or nested application
 runtime so application services are shared and scoped. Use the SDK Network contract rather
-than implementing provider messages. Pass SDK logger configuration through
-unchanged: provider packages sanitize credentials in errors they produce, and
-applications own logger and sink policy.
+than implementing provider messages. Pass SDK logger configuration and
+diagnostics through unchanged; applications own logger and sink policy.
 
 ### Providers compose outside core
 
 `@effect-resonate/core` owns the provider-neutral service contract and gate; it
 does not export Postgres symbols or depend on provider packages. The separate
-`@effect-resonate/network-postgres` package validates redacted configuration,
-wraps `@resonatehq/sdk/postgres`, owns `pg`, and maps provider acquisition
-failures to sanitized errors. A future provider plugs into the same core Layer
+`@effect-resonate/network-postgres` package constructs the official
+`@resonatehq/sdk/postgres` network and keeps `pg` in its dependency boundary.
+It preserves SDK causes and diagnostics. A future provider plugs into the same core Layer
 without modifying core.
 
-`ResonateNetwork.make` is the provider-author seam: it accepts an SDK-compatible
-network factory plus sanitized acquisition-error mapping and returns the Layer
-that provides the `ResonateNetwork` service required by `ResonateClient.layer`.
-This is the only exported core surface allowed to mention the SDK network shape,
-and it derives that shape from the public async `Resonate` constructor type
-rather than an unexported deep SDK module. Workflow, step, context, and client
+`ResonateNetwork` is the provider-author service seam: its `make` Effect
+constructs a fresh SDK network for each client acquisition. The provider
+supplies its Layer directly with `Layer.succeed`; core owns init and stop.
+Workflow, step, context, and client
 signatures remain SDK-free.
 
 Alternatives rejected: putting the first provider in core makes one backend
@@ -389,8 +386,7 @@ that public constructor; do not deep-import the SDK's unexported `Network` type.
 Approach: validate/freeze the complete `ResonateFunctions` group; reject
 invalid dynamic identities, non-increasing dynamic evolution lineage, and
 duplicate exact pairs;
-implement `ResonateNetwork.make` around a provider-supplied compatible network
-factory and sanitized error mapper; require the group's handler services and
+provide `ResonateNetwork` through a provider-supplied Layer; require the group's handler services and
 their transitive application Layers through normal Layer composition; capture
 the acquired context once for SDK callbacks;
 capture one network init promise; buffer delivery until all exact registrations
@@ -414,7 +410,7 @@ dispatch; no delivery before ready; normal drain, expired drain, late completion
 repeated release, finalizer ordering, and zero per-delivery references after
 release. External-promise tests cover encoded resolution, rejection,
 cancellation, malformed data, duplicate/late settlement, and timeout races.
-Inject sentinel provider errors/logs to prove core redaction without naming a
+Inject original provider errors/logs to prove core retains SDK diagnostics without naming a
 concrete provider. Type tests prove the client Layer retains a
 `ResonateNetwork` requirement until ordinary `Layer.provide` composition
 supplies one.
@@ -465,15 +461,15 @@ Dependencies: U4; peer-depend on `@effect-resonate/core`, Effect, Resonate, and
 `pg`; install them plus `@types/pg` for development. Match the SDK 0.11.5 `pg`
 range. Core's manifest and sources remain unchanged by provider dependencies.
 
-Approach: validate redacted provider configuration, construct the official
-`@resonatehq/sdk/postgres` Network through `ResonateNetwork.make`, and supply
-sanitized provider-error mapping. Do not initialize or stop the SDK network in
+Approach: pass the official SDK config directly to a fresh
+`@resonatehq/sdk/postgres` Network through the `ResonateNetwork` service factory.
+Map only constructor failures to a typed `ResonateSdkError` retaining the original cause. Do not initialize or stop the SDK network in
 parallel with core; the generic gate owns that lifecycle. Do not install schema
 or query Resonate's private tables in production code.
 
-Tests: malformed/empty config, missing `pg`, failed connection, missing schema,
-init/stop race, idempotent stop, and redacted upstream logs/errors. Contract
-types prove the Layer composes with core without provider branches in core.
+Tests: fresh construction, exact config/logger pass-through, original constructor
+and method errors, and core-owned init/stop. U7 covers real connection and schema
+failures against PostgreSQL.
 
 Verification: the provider builds and packs independently; core builds, tests,
 and packs with no `Postgres`, `network-postgres`, or `pg` reference.
@@ -578,10 +574,9 @@ provider branch to core merely to make the stack executable.
   and runtime pin, lease one database per test, give cron jobs run-scoped names,
   unschedule before releasing the lease, close every connection, and never query
   private tables from production code.
-- **Error diagnostics can leak secrets through upstream messages.** Keep
-  provider credentials out of provider-owned errors, document that core passes
-  SDK logging through unchanged, and let applications apply their own logger
-  and sink policy.
+- **Error diagnostics can contain credentials through upstream messages.**
+  Preserve SDK errors and logging through the wrapper; applications choose
+  their own logger and sink policy.
 
 ## Open questions
 

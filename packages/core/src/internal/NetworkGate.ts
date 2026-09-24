@@ -1,9 +1,9 @@
-import type { CompatibleNetwork } from "../ResonateNetwork.js"
+import type { Network } from "@resonatehq/sdk"
 
-type ReceiveCallback = Parameters<CompatibleNetwork["recv"]>[0]
+type ReceiveCallback = Parameters<Network["recv"]>[0]
 type Message = Parameters<ReceiveCallback>[0]
 
-export interface GatedNetwork extends CompatibleNetwork {
+export interface NetworkGate extends Network {
   /** The exact initialization started by the Resonate constructor. */
   readonly initialized: () => Promise<void>
   /** Releases buffered SDK deliveries after registration is complete. */
@@ -13,7 +13,7 @@ export interface GatedNetwork extends CompatibleNetwork {
 }
 
 /** Wraps an official SDK network without replacing its protocol behavior. */
-export const make = (network: CompatibleNetwork): GatedNetwork => {
+export const make = (network: Network): NetworkGate => {
   const buffered: Array<Message> = []
   let callback: ReceiveCallback | undefined
   let state: "Closed" | "Open" | "Waiting" = "Waiting"

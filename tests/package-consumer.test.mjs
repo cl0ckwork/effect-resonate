@@ -8,6 +8,7 @@ import test from "node:test"
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const coreRoot = join(projectRoot, "packages", "core")
+const postgresRoot = join(projectRoot, "packages", "network-postgres")
 
 test("the packed core artifact typechecks from root and subpath imports", (context) => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "effect-resonate-package-consumer-"))
@@ -114,4 +115,83 @@ void [
 
   const packedManifest = JSON.parse(readFileSync(join(packedCore, "package.json"), "utf8"))
   assert.ok(packedManifest.exports["./ResonateClient"])
+})
+
+test("the packed Postgres provider typechecks from root and subpath imports", (context) => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "effect-resonate-postgres-consumer-"))
+  context.after(() => rmSync(fixtureRoot, { recursive: true, force: true }))
+
+  execFileSync(join(coreRoot, "node_modules", ".bin", "zshy"), [], { cwd: coreRoot })
+  execFileSync(join(postgresRoot, "node_modules", ".bin", "zshy"), [], { cwd: postgresRoot })
+
+  const pack = (packageRoot) => {
+    const output = execFileSync("npm", ["pack", "--json", "--pack-destination", fixtureRoot], {
+      cwd: packageRoot,
+      encoding: "utf8"
+    })
+    const [{ filename }] = JSON.parse(output)
+    assert.equal(typeof filename, "string")
+    return join(fixtureRoot, filename)
+  }
+
+  const nodeModules = join(fixtureRoot, "node_modules")
+  const packedCore = join(nodeModules, "@effect-resonate", "core")
+  const packedPostgres = join(nodeModules, "@effect-resonate", "network-postgres")
+  for (const [archive, destination] of [
+    [pack(coreRoot), packedCore],
+    [pack(postgresRoot), packedPostgres]
+  ]) {
+    const entries = execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
+    assert.doesNotMatch(entries, /__tests__|\.types\.js/)
+    mkdirSync(destination, { recursive: true })
+    execFileSync("tar", ["-xzf", archive, "-C", destination, "--strip-components=1"])
+  }
+
+  symlinkSync(join(coreRoot, "node_modules", "effect"), join(nodeModules, "effect"), "dir")
+  mkdirSync(join(nodeModules, "@resonatehq"), { recursive: true })
+  symlinkSync(join(coreRoot, "node_modules", "@resonatehq", "sdk"), join(nodeModules, "@resonatehq", "sdk"), "dir")
+  symlinkSync(join(postgresRoot, "node_modules", "pg"), join(nodeModules, "pg"), "dir")
+
+  writeFileSync(join(fixtureRoot, "package.json"), JSON.stringify({ type: "module" }))
+  writeFileSync(join(fixtureRoot, "tsconfig.json"), JSON.stringify({
+    compilerOptions: {
+      target: "ES2022",
+      lib: ["ESNext", "DOM", "DOM.Iterable"],
+      module: "NodeNext",
+      moduleResolution: "NodeNext",
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      noEmit: true,
+      skipLibCheck: true,
+      verbatimModuleSyntax: true
+    },
+    files: ["consumer.ts"]
+  }))
+  writeFileSync(join(fixtureRoot, "consumer.ts"), `
+import * as Postgres from "@effect-resonate/network-postgres"
+import { layer } from "@effect-resonate/network-postgres/PostgresNetwork"
+import * as ResonateClient from "@effect-resonate/core/ResonateClient"
+import { Layer } from "effect"
+
+const network = Postgres.layer({ connectionString: "postgres://localhost/resonate" })
+const client = ResonateClient.layer({ drainTimeout: "1 second" }).pipe(Layer.provide(network))
+const subpath = layer({ connectionString: "postgres://localhost/resonate", tickMs: 250 })
+void [client, subpath]
+`)
+
+  execFileSync(join(coreRoot, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.json"], {
+    cwd: fixtureRoot,
+    stdio: "inherit"
+  })
+  execFileSync("node", ["--input-type=module", "-e", "await import('@effect-resonate/network-postgres')"], {
+    cwd: fixtureRoot,
+    stdio: "inherit"
+  })
+
+  const coreManifest = JSON.parse(readFileSync(join(packedCore, "package.json"), "utf8"))
+  const providerManifest = JSON.parse(readFileSync(join(packedPostgres, "package.json"), "utf8"))
+  assert.equal(coreManifest.peerDependencies.pg, undefined)
+  assert.equal(providerManifest.peerDependencies.pg, "^8.11.0")
+  assert.ok(providerManifest.exports["./PostgresNetwork"])
+  assert.equal(providerManifest.dependencies?.["@effect-resonate/testing"], undefined)
 })

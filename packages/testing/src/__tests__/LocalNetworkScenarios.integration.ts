@@ -85,9 +85,12 @@ const makeLocalNetworkTestLayer = (options: {
   NetworkHarness.HarnessSetupError
 > => {
   const FixtureLive = fixtureLayer(options)
-  const NetworkLive = ResonateNetwork.make({
-    factory: LocalFixture.use((fixture) => Effect.succeed(fixture.network))
-  })
+  const NetworkLive = Layer.effect(
+    ResonateNetwork.ResonateNetwork,
+    LocalFixture.use((fixture) => Effect.succeed(
+      ResonateNetwork.ResonateNetwork.of({ make: Effect.succeed(fixture.network) })
+    ))
+  )
   const HarnessLive = NetworkHarness.layer({
     name: "sdk-local",
     setupTimeout: options.scenarioTimeout ?? Duration.seconds(4),

@@ -33,7 +33,7 @@ import { AdapterSupervisor } from "./AdapterSupervisor.js"
 import * as DefinitionRegistry from "./DefinitionRegistry.js"
 import * as DurableOutcome from "./DurableOutcome.js"
 import * as DurableRejection from "./DurableRejection.js"
-import * as GatedNetwork from "./GatedNetwork.js"
+import * as NetworkGate from "./NetworkGate.js"
 import { encodeWorkflowInput, encodeWorkflowPayload } from "./SchemaBoundary.js"
 import * as SdkError from "./SdkError.js"
 import * as StepAdapter from "./StepAdapter.js"
@@ -242,10 +242,10 @@ const stopSdk = (resonate: Resonate): Effect.Effect<void, ResonateSdkError> =>
 
 const release = (
   resonate: Resonate,
-  gated: GatedNetwork.GatedNetwork,
+  gate: NetworkGate.NetworkGate,
   drainTimeout: Duration.Duration
 ): Effect.Effect<void, ResonateSdkError, AdapterSupervisor> => Effect.gen(function*() {
-  gated.close()
+  gate.close()
   yield* AdapterSupervisor.close
   const drained = yield* AdapterSupervisor.drain.pipe(Effect.timeoutOption(drainTimeout))
   yield* Option.match(drained, {
@@ -300,21 +300,21 @@ export const make = <Group extends ResonateFunctions.Any>(
   const codec = new Codec(clientOptions.encryptor)
   const provider = yield* ResonateNetwork
   const network = yield* provider.make
-  const gated = GatedNetwork.make(network)
+  const gate = NetworkGate.make(network)
   let sdkOwnsNetwork = false
   yield* Effect.addFinalizer(() => sdkOwnsNetwork
     ? Effect.void
-    : Effect.promise(() => gated.stop()))
+    : Effect.promise(() => gate.stop()))
 
   const services = yield* Effect.context<ResonateFunctions.Handlers<Group> | AdapterSupervisor>()
   const resonate = yield* sdkSync("network.init", false, () => new Resonate({
     ...clientOptions,
-    network: gated
+    network: gate
   }))
   sdkOwnsNetwork = true
 
   const shutdownOwner = yield* Effect.cached(
-    release(resonate, gated, parsedDrainTimeout.value).pipe(
+    release(resonate, gate, parsedDrainTimeout.value).pipe(
       Effect.provide(services),
       Effect.forkDetach,
       Effect.uninterruptible
@@ -324,8 +324,8 @@ export const make = <Group extends ResonateFunctions.Any>(
   yield* Effect.addFinalizer(() => shutdown.pipe(Effect.orDie))
 
   yield* registerDefinitions(resonate, registry.definitions, services)
-  yield* sdkEffect("network.init", false, () => gated.initialized())
-  gated.open()
+  yield* sdkEffect("network.init", false, () => gate.initialized())
+  gate.open()
 
   const promiseSettle = (
     operation: "resolve" | "reject" | "cancel",

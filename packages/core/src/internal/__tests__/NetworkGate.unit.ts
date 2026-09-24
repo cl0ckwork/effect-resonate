@@ -1,9 +1,9 @@
 import { assert, describe, it } from "@effect/vitest"
 import { Deferred, Effect } from "effect"
-import type { CompatibleNetwork } from "../../ResonateNetwork.js"
-import * as GatedNetwork from "../GatedNetwork.js"
+import type { Network } from "@resonatehq/sdk"
+import * as NetworkGate from "../NetworkGate.js"
 
-type ReceiveCallback = Parameters<CompatibleNetwork["recv"]>[0]
+type ReceiveCallback = Parameters<Network["recv"]>[0]
 type Message = Parameters<ReceiveCallback>[0]
 
 const executeMessage = (version: number): Message => ({
@@ -12,7 +12,7 @@ const executeMessage = (version: number): Message => ({
   data: { task: { id: `task-${version}`, version } }
 })
 
-describe("GatedNetwork", () => {
+describe("NetworkGate", () => {
   it("captures SDK initialization and buffers delivery until opened", async () => {
     const initialized: Array<string> = []
     const delivered: Array<Message> = []
@@ -29,17 +29,17 @@ describe("GatedNetwork", () => {
       recv: (callback: ReceiveCallback) => {
         receive = callback
       }
-    } as CompatibleNetwork
-    const gated = GatedNetwork.make(network)
-    gated.recv((message) => delivered.push(message))
+    } as Network
+    const gate = NetworkGate.make(network)
+    gate.recv((message) => delivered.push(message))
 
-    const initialization = gated.init()
+    const initialization = gate.init()
     receive(executeMessage(1))
-    await gated.initialized()
+    await gate.initialized()
 
     assert.deepStrictEqual(initialized, ["init"])
     assert.deepStrictEqual(delivered, [])
-    gated.open()
+    gate.open()
     assert.deepStrictEqual(delivered, [executeMessage(1)])
     await initialization
   })
@@ -54,12 +54,12 @@ describe("GatedNetwork", () => {
       stop: async () => undefined,
       send: async () => ({}) as never,
       recv: () => undefined
-    } as CompatibleNetwork
-    const gated = GatedNetwork.make(network)
+    } as Network
+    const gate = NetworkGate.make(network)
 
-    void gated.init().catch(() => undefined)
+    void gate.init().catch(() => undefined)
 
-    assert.strictEqual(await gated.initialized().catch((cause) => cause), failure)
+    assert.strictEqual(await gate.initialized().catch((cause) => cause), failure)
   })
 
   it("waits for pending initialization before stopping provider resources", async () => {
@@ -77,11 +77,11 @@ describe("GatedNetwork", () => {
       },
       send: async () => ({}) as never,
       recv: () => undefined
-    } as CompatibleNetwork
-    const gated = GatedNetwork.make(network)
+    } as Network
+    const gate = NetworkGate.make(network)
 
-    const initialization = gated.init()
-    const stopping = gated.stop()
+    const initialization = gate.init()
+    const stopping = gate.stop()
     await Promise.resolve()
     assert.deepStrictEqual(events, [])
 
@@ -106,15 +106,15 @@ describe("GatedNetwork", () => {
       recv: (callback: ReceiveCallback) => {
         receive = callback
       }
-    } as CompatibleNetwork
-    const gated = GatedNetwork.make(network)
-    gated.recv((message) => delivered.push(message))
-    gated.open()
+    } as Network
+    const gate = NetworkGate.make(network)
+    gate.recv((message) => delivered.push(message))
+    gate.open()
     receive(executeMessage(1))
-    gated.close()
+    gate.close()
     receive(executeMessage(2))
 
-    await Promise.all([gated.stop(), gated.stop()])
+    await Promise.all([gate.stop(), gate.stop()])
 
     assert.deepStrictEqual(delivered, [executeMessage(1)])
     assert.strictEqual(stops, 1)
