@@ -34,9 +34,55 @@ Install core with Effect and the Resonate SDK:
 pnpm add @effect-resonate/core effect @resonatehq/sdk
 ```
 
-A client needs a network provider. For PostgreSQL, also install
-`@effect-resonate/network-postgres` and `pg`, then follow the
-[database setup guide](../network-postgres/README.md#database-setup).
+A client needs a network provider. For PostgreSQL, also install `pg` and use
+`PostgresNetwork` from `@resonatehq/sdk/postgres`, described below. The SDK
+declares `pg` as an optional peer; applications that use another network
+provider do not need it.
+
+## PostgreSQL network
+
+Pass a fresh SDK `PostgresNetwork` through `ResonateNetwork.layer`. Set
+`DATABASE_URL` to a PostgreSQL connection string; Effect Config reports a
+missing variable when the Layer is acquired:
+
+```ts
+import * as ResonateClient from "@effect-resonate/core/ResonateClient"
+import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"
+import { PostgresNetwork } from "@resonatehq/sdk/postgres"
+import { Config, Effect, Layer, Redacted } from "effect"
+
+const NetworkLive = Layer.unwrap(
+  Config.Redacted("DATABASE_URL").pipe(
+    Effect.map((url) =>
+      ResonateNetwork.layer(
+        () =>
+          new PostgresNetwork({
+            connectionString: Redacted.value(url),
+            group: "workers"
+          })
+      )
+    )
+  )
+)
+
+const ClientLive = ResonateClient.layer({ drainTimeout: "30 seconds" }).pipe(
+  Layer.provide(NetworkLive)
+)
+```
+
+The factory constructs a fresh SDK network for each client acquisition. Core
+owns initialization, readiness, and shutdown, including cleanup after partial
+acquisition. The SDK owns its PostgreSQL configuration, errors, diagnostics,
+logging, and retry behavior.
+
+### Database setup
+
+Provision the Resonate PostgreSQL schema and the `pg_cron` extension before
+starting a client. Core does not run migrations or create database objects.
+Follow the setup instructions for the version of the
+[Resonate TypeScript SDK](https://docs.resonatehq.io/develop/typescript) in use.
+The [PostgreSQL example](../../examples/postgres/README.md) shows a local setup
+with pinned SQL fixtures; those fixtures are not production migrations.
 
 ## Durable contract guidance
 

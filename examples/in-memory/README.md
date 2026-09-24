@@ -10,7 +10,7 @@ pnpm --filter @effect-resonate/core build
 pnpm --filter @effect-resonate/example-in-memory test
 ```
 
-The test supplies `LocalNetwork` through `ResonateNetwork` and acquires
+The test supplies `LocalNetwork` through `ResonateNetwork.layer` and acquires
 `ResonateClient.layer` for one test run. The workflow uses `context.run` for its
 durable step and `Result.map` to format its success value. This also preserves
 the failure branch if a step later declares a typed failure. The test also

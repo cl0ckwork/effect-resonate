@@ -27,14 +27,12 @@ const fixture = (context, version = "0.1.0") => {
     join(projectRoot, "scripts", "stage-packages.mjs"),
     join(scripts, "stage-packages.mjs")
   )
-  for (const [directory, name] of [
-    ["core", "@effect-resonate/core"],
-    ["network-postgres", "@effect-resonate/network-postgres"]
-  ]) {
-    const packageDirectory = join(root, "packages", directory)
-    mkdirSync(packageDirectory, { recursive: true })
-    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ name, version }))
-  }
+  const packageDirectory = join(root, "packages", "core")
+  mkdirSync(packageDirectory, { recursive: true })
+  writeFileSync(
+    join(packageDirectory, "package.json"),
+    JSON.stringify({ name: "@effect-resonate/core", version })
+  )
   const calls = join(root, "calls.jsonl")
   const summary = join(root, "summary.md")
   writeFileSync(calls, "")
@@ -51,7 +49,7 @@ if (args[0] === "view") {
     process.stderr.write("npm error E500 registry unavailable\\n")
     process.exit(1)
   }
-  if (process.env.SCENARIO === "missing-package" && args[1] === "@effect-resonate/network-postgres") {
+  if (process.env.SCENARIO === "missing-package" && args[1] === "@effect-resonate/core") {
     process.stderr.write("npm error E404 Not Found\\n")
     process.exit(1)
   }
@@ -62,7 +60,7 @@ if (args[0] === "view") {
   process.stdout.write('"0.1.0"\\n')
   process.exit(0)
 }
-if (args[0] === "stage" && process.env.SCENARIO === "stage-conflict" && process.cwd().endsWith("network-postgres")) {
+if (args[0] === "stage" && process.env.SCENARIO === "stage-conflict") {
   process.stderr.write("npm error E409 already staged\\n")
   process.exit(1)
 }
@@ -94,7 +92,7 @@ if (args[0] === "stage") process.stdout.write("staged\\n")
   }
 }
 
-test("staging waits until both public packages exist", (context) => {
+test("staging waits until core exists on npm", (context) => {
   const result = fixture(context)("missing-package")
   assert.equal(result.status, 0)
   assert.equal(
@@ -122,25 +120,25 @@ test("staging skips the unreleased version sentinel", (context) => {
   )
 })
 
-test("staging records both versions awaiting approval", (context) => {
+test("staging records the core version awaiting approval", (context) => {
   const result = fixture(context)("new-version")
   assert.equal(result.status, 0)
   const stageCalls = result.invoked.filter(([command]) => command === "stage")
-  assert.equal(stageCalls.length, 2)
+  assert.equal(stageCalls.length, 1)
   for (const args of stageCalls) {
     assert.ok(args.includes("--provenance"))
     assert.ok(args.includes("https://registry.npmjs.org/"))
   }
   assert.match(result.summary, /@effect-resonate\/core@0\.1\.0/)
-  assert.match(result.summary, /@effect-resonate\/network-postgres@0\.1\.0/)
+  assert.doesNotMatch(result.summary, /network-postgres/)
 })
 
 test("staging stops on a conflict whose exact staged version cannot be verified", (context) => {
   const result = fixture(context)("stage-conflict")
   assert.notEqual(result.status, 0)
   const stageCalls = result.invoked.filter(([command]) => command === "stage")
-  assert.equal(stageCalls.length, 2)
-  assert.match(result.stderr, /Unable to stage @effect-resonate\/network-postgres@0\.1\.0/)
+  assert.equal(stageCalls.length, 1)
+  assert.match(result.stderr, /Unable to stage @effect-resonate\/core@0\.1\.0/)
   assert.match(result.stderr, /Check npm's staged versions/)
   assert.equal(result.summary, "")
 })

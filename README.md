@@ -7,19 +7,18 @@ registered steps and manages client and network resources.
 
 ## Install
 
-Node.js 22 or newer is required. For the PostgreSQL provider, install both
-packages and their peer dependencies:
+Node.js 22 or newer is required. For PostgreSQL, install core, its peer
+dependencies, and the SDK's `pg` peer:
 
 ```sh
-pnpm add @effect-resonate/core @effect-resonate/network-postgres effect @resonatehq/sdk pg
+pnpm add @effect-resonate/core effect @resonatehq/sdk pg
 ```
 
 Provision the Resonate PostgreSQL schema and `pg_cron` extension before starting
 the client. See the
-[Postgres setup guide](./packages/network-postgres/README.md#database-setup).
+[Postgres setup guide](./packages/core/README.md#database-setup).
 
-If you supply another network provider, install `@effect-resonate/core`,
-`effect`, and `@resonatehq/sdk` without the PostgreSQL package or `pg`.
+If you supply another network provider, `pg` is unnecessary.
 
 ## Quick start
 
@@ -28,8 +27,14 @@ This example registers a durable workflow that calls an Effect step. Set
 [PostgreSQL example](./examples/postgres/README.md) shows how to bootstrap one.
 
 ```ts
-import { ResonateClient, ResonateFunctions, Step, Workflow } from "@effect-resonate/core"
-import * as PostgresNetwork from "@effect-resonate/network-postgres"
+import {
+  ResonateClient,
+  ResonateFunctions,
+  ResonateNetwork,
+  Step,
+  Workflow
+} from "@effect-resonate/core"
+import { PostgresNetwork } from "@resonatehq/sdk/postgres"
 import { Config, Effect, Layer, Redacted, Schema } from "effect"
 
 const Uppercase = Step.make({
@@ -53,7 +58,9 @@ const EchoLive = Echo.toLayer(async (context, input) => context.run(Uppercase, i
 
 const NetworkLive = Layer.unwrap(
   Config.Redacted("DATABASE_URL").pipe(
-    Effect.map((url) => PostgresNetwork.layer({ connectionString: Redacted.value(url) }))
+    Effect.map((url) =>
+      ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: Redacted.value(url) }))
+    )
   )
 )
 
@@ -78,8 +85,8 @@ context for durable operations; put arbitrary Effect and I/O work in steps.
 
 For contract evolution, recovery with `ResonateClient.get`, and the client API,
 see the [core guide](./packages/core/README.md). The
-[Postgres provider guide](./packages/network-postgres/README.md) covers network
-configuration and database requirements. The
+[Postgres provider guide](./packages/core/README.md#postgresql-network) covers
+network configuration and database requirements. The
 [Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
 remains the reference for orchestration and retry semantics.
 
@@ -94,9 +101,8 @@ remains the reference for orchestration and retry semantics.
 ## Packages
 
 - [`@effect-resonate/core`](./packages/core) provides the client Layer,
-  versioned workflow and step contracts, and provider-neutral network service.
-- [`@effect-resonate/network-postgres`](./packages/network-postgres) adapts the
-  official SDK PostgreSQL network.
+  versioned workflow and step contracts, and a network service that accepts
+  providers from the Resonate SDK.
 - [`@effect-resonate/testing`](./packages/testing) is private workspace support
   for provider conformance tests; consumers do not install it.
 

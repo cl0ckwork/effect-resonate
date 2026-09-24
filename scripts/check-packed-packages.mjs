@@ -27,7 +27,6 @@ try {
   }
 
   const core = packageTarball("packages/core")
-  const postgres = packageTarball("packages/network-postgres")
   writeFileSync(
     join(consumer, "package.json"),
     JSON.stringify(
@@ -36,10 +35,8 @@ try {
         type: "module",
         dependencies: {
           "@effect-resonate/core": core,
-          "@effect-resonate/network-postgres": postgres,
           "@resonatehq/sdk": "^0.11.4",
           effect: "4.0.0-rc.115",
-          pg: "^8.11.0",
           typescript: "5.9.2"
         }
       },
@@ -53,8 +50,8 @@ try {
       'import * as Core from "@effect-resonate/core"',
       'import * as Workflow from "@effect-resonate/core/Workflow"',
       'import * as Step from "@effect-resonate/core/Step"',
-      'import * as Postgres from "@effect-resonate/network-postgres/PostgresNetwork"',
-      "void [Core, Workflow, Step, Postgres]",
+      'import * as Network from "@effect-resonate/core/ResonateNetwork"',
+      "void [Core, Workflow, Step, Network]",
       ""
     ].join("\n")
   )
@@ -63,6 +60,15 @@ try {
     cwd: consumer,
     stdio: "inherit"
   })
+  execFileSync(
+    "node",
+    [
+      "--input-type=module",
+      "-e",
+      "await import('@effect-resonate/core'); try { import.meta.resolve('pg'); throw new Error('pg was installed for a core-only consumer') } catch (error) { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error }"
+    ],
+    { cwd: consumer, stdio: "inherit" }
+  )
   execFileSync(
     "npm",
     [
@@ -79,6 +85,50 @@ try {
       "--target",
       "ES2022",
       "consumer.mts"
+    ],
+    { cwd: consumer, stdio: "inherit" }
+  )
+  execFileSync("npm", ["install", "pg@^8.11.0", "--ignore-scripts", "--no-audit", "--no-fund"], {
+    cwd: consumer,
+    stdio: "inherit"
+  })
+  writeFileSync(
+    join(consumer, "postgres.mts"),
+    [
+      'import { PostgresNetwork } from "@resonatehq/sdk/postgres"',
+      'import * as ResonateNetwork from "@effect-resonate/core/ResonateNetwork"',
+      'import { Effect } from "effect"',
+      'const live = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: "postgres://localhost/resonate" }))',
+      "const network = ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live))",
+      "void network",
+      ""
+    ].join("\n")
+  )
+  execFileSync(
+    "npm",
+    [
+      "exec",
+      "--",
+      "tsc",
+      "--noEmit",
+      "--skipLibCheck",
+      "--strict",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--target",
+      "ES2022",
+      "postgres.mts"
+    ],
+    { cwd: consumer, stdio: "inherit" }
+  )
+  execFileSync(
+    "node",
+    [
+      "--input-type=module",
+      "-e",
+      "const [{ PostgresNetwork }, ResonateNetwork, { Effect }] = await Promise.all([import('@resonatehq/sdk/postgres'), import('@effect-resonate/core/ResonateNetwork'), import('effect')]); const live = ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: 'postgres://localhost/resonate' })); await Effect.runPromise(ResonateNetwork.ResonateNetwork.pipe(Effect.provide(live)))"
     ],
     { cwd: consumer, stdio: "inherit" }
   )

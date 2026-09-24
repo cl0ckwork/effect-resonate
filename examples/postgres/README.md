@@ -1,7 +1,8 @@
 # PostgreSQL example
 
 This runnable example starts a local PostgreSQL database, applies the Resonate
-schema, and runs a simple workflow followed by an evolved version. Run commands
+schema, and runs a simple workflow followed by an evolved version using the
+SDK's `PostgresNetwork` through `ResonateNetwork.layer`. Run commands
 from `examples/postgres` after `pnpm install` and `pnpm build` at the repository
 root. Node.js 22 or newer, Docker Compose, and `pnpm` are required.
 

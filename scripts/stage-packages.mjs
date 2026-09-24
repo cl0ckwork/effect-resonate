@@ -4,7 +4,7 @@ import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)))
-const packagePaths = ["packages/core", "packages/network-postgres"]
+const packagePaths = ["packages/core"]
 const packages = packagePaths
   .map((directory) => ({
     directory,
@@ -32,7 +32,7 @@ const npmView = (spec) => {
 const missingPackages = packages.filter(({ name }) => npmView(name) === undefined)
 if (missingPackages.length > 0) {
   console.log(
-    `Skipping automated staging until all packages have been bootstrapped on npm: ${missingPackages.map(({ name }) => name).join(", ")}`
+    `Skipping automated staging until ${missingPackages[0].name} has been bootstrapped on npm.`
   )
   process.exit(0)
 }
@@ -82,13 +82,13 @@ if (staged.length > 0 && process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
     [
-      "## npm versions awaiting approval",
+      "## npm version awaiting approval",
       "",
       ...staged.map((spec) => `- \`${spec}\``),
       "",
-      "Review each staged package on npmjs.com or with `npm stage list`, then approve with 2FA.",
+      "Review the staged package on npmjs.com or with `npm stage list`, then approve with 2FA.",
       "",
-      "These versions are not public until approved.",
+      "This version is not public until approved.",
       ""
     ].join("\n")
   )

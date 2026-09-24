@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { ResonateClient, ResonateFunctions, Step, Workflow } from "@effect-resonate/core"
-import * as PostgresNetwork from "@effect-resonate/network-postgres"
+import { PostgresNetwork } from "@resonatehq/sdk/postgres"
+import { ResonateNetwork } from "@effect-resonate/core"
 import { Config, Effect, Layer, Redacted, Schema } from "effect"
 
 // Keep v1 registered while any v1 executions may still be running or replaying.
@@ -61,7 +62,9 @@ const TextV2Live = TextV2.toLayer(async (context, input) => context.run(Normaliz
 // credential out of ordinary logging; the SDK receives the string at this boundary.
 const NetworkLive = Layer.unwrap(
   Config.Redacted("DATABASE_URL").pipe(
-    Effect.map((url) => PostgresNetwork.layer({ connectionString: Redacted.value(url) }))
+    Effect.map((url) =>
+      ResonateNetwork.layer(() => new PostgresNetwork({ connectionString: Redacted.value(url) }))
+    )
   )
 )
 

@@ -12,7 +12,7 @@
     "test": "node --test tests/*.test.mjs && pnpm -r --if-present test",
     "test:unit": "node --test tests/*.test.mjs && pnpm -r --if-present test:unit",
     "test:integration": "pnpm -r --if-present test:integration",
-    "check:packages": "pnpm exec publint run --strict packages/core && pnpm exec publint run --strict packages/network-postgres && pnpm exec attw --pack --profile esm-only packages/core && pnpm exec attw --pack --profile esm-only packages/network-postgres && node scripts/check-packed-packages.mjs",
+    "check:packages": "pnpm exec publint run --strict packages/core && pnpm exec attw --pack --profile esm-only packages/core && node scripts/check-packed-packages.mjs",
     "check": "pnpm build && pnpm lint && pnpm typecheck && pnpm test:types && pnpm check:packages",
     "doctor": "bash scripts/doctor",
     "worktree-up": "bash scripts/worktree-up",
