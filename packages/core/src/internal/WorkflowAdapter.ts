@@ -18,14 +18,14 @@ const sourceOf = <Definition extends Workflow.Any>(
   rejected: ExecutionRejected
 ): DurableRejection.Source | undefined =>
   rejected.executionId === executionId &&
-    rejected.definitionName === definition.name &&
-    rejected.definitionVersion === definition.version
+  rejected.definitionName === definition.name &&
+  rejected.definitionVersion === definition.version
     ? undefined
     : {
-      executionId: rejected.executionId,
-      definitionName: rejected.definitionName,
-      definitionVersion: rejected.definitionVersion
-    }
+        executionId: rejected.executionId,
+        definitionName: rejected.definitionName,
+        definitionVersion: rejected.definitionVersion
+      }
 
 const rejection = <Definition extends Workflow.Any>(
   definition: Definition,
@@ -58,44 +58,46 @@ const rejection = <Definition extends Workflow.Any>(
   )
 }
 
-export const make = <Definition extends Workflow.Any>(
-  definition: Definition,
-  handler: Workflow.HandlerService<
-    Workflow.Workflow.Input<Definition>,
-    Workflow.Workflow.Success<Definition>,
-    Workflow.Workflow.Failure<Definition>
-  >
-) => async (
-  context: ResonateContext,
-  ...arguments_: ReadonlyArray<unknown>
-): Promise<DurableOutcome.DurableOutcome<DurableValue, DurableValue>> => {
-  if (arguments_.length !== 1) {
-    return DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
-  }
-  const input = decodeWorkflowInput(
-    durableCodec(definition.input),
-    arguments_[0],
-    definition.name,
-    definition.version
-  )
-  if (Result.isFailure(input)) {
-    return DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
-  }
-
-  try {
-    const result = await handler.execute(
-      WorkflowContextImpl.make(context),
-      input.success as Workflow.Workflow.Input<Definition>
+export const make =
+  <Definition extends Workflow.Any>(
+    definition: Definition,
+    handler: Workflow.HandlerService<
+      Workflow.Workflow.Input<Definition>,
+      Workflow.Workflow.Success<Definition>,
+      Workflow.Workflow.Failure<Definition>
+    >
+  ) =>
+  async (
+    context: ResonateContext,
+    ...arguments_: ReadonlyArray<unknown>
+  ): Promise<DurableOutcome.DurableOutcome<DurableValue, DurableValue>> => {
+    if (arguments_.length !== 1) {
+      return DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
+    }
+    const input = decodeWorkflowInput(
+      durableCodec(definition.input),
+      arguments_[0],
+      definition.name,
+      definition.version
     )
-    if (!Result.isResult(result)) {
-      throw DurableRejection.make(definition, context.id, "ContractViolation")
+    if (Result.isFailure(input)) {
+      return DurableOutcome.invalidInput(DurableOutcome.identityOf(definition))
     }
-    const encoded = DurableOutcome.encodeWorkflowResult(definition, result)
-    if (Result.isFailure(encoded)) {
-      throw DurableRejection.make(definition, context.id, "ContractViolation")
+
+    try {
+      const result = await handler.execute(
+        WorkflowContextImpl.make(context),
+        input.success as Workflow.Workflow.Input<Definition>
+      )
+      if (!Result.isResult(result)) {
+        throw DurableRejection.make(definition, context.id, "ContractViolation")
+      }
+      const encoded = DurableOutcome.encodeWorkflowResult(definition, result)
+      if (Result.isFailure(encoded)) {
+        throw DurableRejection.make(definition, context.id, "ContractViolation")
+      }
+      return encoded.success
+    } catch (cause) {
+      throw rejection(definition, context.id, cause)
     }
-    return encoded.success
-  } catch (cause) {
-    throw rejection(definition, context.id, cause)
   }
-}

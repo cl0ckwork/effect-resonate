@@ -48,9 +48,7 @@ export interface InvalidInput extends Common {
 }
 
 export type DurableOutcome<A extends DurableValue, E extends DurableValue> =
-  | Success<A>
-  | Failure<E>
-  | InvalidInput
+  Success<A> | Failure<E> | InvalidInput
 
 const PositiveVersion = Schema.Int.check(Schema.isGreaterThan(0))
 const DefinitionIdentitySchema = Schema.Struct({
@@ -93,9 +91,7 @@ const InvalidInputSchema = Schema.Struct({
 
 const loose = { onExcessProperty: "ignore" } as const
 
-export const identityOf = (
-  definition: Step.Any | Workflow.Any
-): DurableDefinitionIdentity => ({
+export const identityOf = (definition: Step.Any | Workflow.Any): DurableDefinitionIdentity => ({
   kind: definition.kind,
   name: definition.name,
   version: definition.version
@@ -121,28 +117,24 @@ export const failure = <E extends DurableValue>(
   error
 })
 
-export const invalidInput = (
-  definition: DurableDefinitionIdentity
-): InvalidInput => ({
+export const invalidInput = (definition: DurableDefinitionIdentity): InvalidInput => ({
   protocolVersion,
   definition,
   _tag: "InvalidInput",
   issue: { _tag: "SchemaMismatch" }
 })
 
-const sameIdentity = (
-  left: DurableDefinitionIdentity,
-  right: DurableDefinitionIdentity
-): boolean =>
-  left.kind === right.kind &&
-  left.name === right.name &&
-  left.version === right.version
+const sameIdentity = (left: DurableDefinitionIdentity, right: DurableDefinitionIdentity): boolean =>
+  left.kind === right.kind && left.name === right.name && left.version === right.version
 
 const decodeEnvelope = <IdentityError>(
   input: unknown,
   expected: DurableDefinitionIdentity,
   onIdentityMismatch: (actual: DurableDefinitionIdentity) => IdentityError
-): Result.Result<DurableOutcome<DurableValue, DurableValue>, DurableProtocolError | IdentityError> => {
+): Result.Result<
+  DurableOutcome<DurableValue, DurableValue>,
+  DurableProtocolError | IdentityError
+> => {
   const shell = decodeSchema(EnvelopeShellSchema, input, "MalformedEnvelope", loose)
   if (Result.isFailure(shell)) {
     return Result.fail(shell.failure)
@@ -197,69 +189,66 @@ const decodeEnvelope = <IdentityError>(
   )
 }
 
-export const encodeStepResult = <
-  Definition extends Step.Any
->(
+export const encodeStepResult = <Definition extends Step.Any>(
   definition: Definition,
   result: Result.Result<Step.Step.Success<Definition>, Step.Step.Failure<Definition>>
 ): Result.Result<DurableOutcome<DurableValue, DurableValue>, DurableProtocolError> => {
   const identity = identityOf(definition)
   return Result.match(result, {
-    onSuccess: (value) => Result.map(
-      encodeWorkflowPayload(durableCodec(definition.success), value),
-      (encoded) => success(identity, encoded)
-    ),
-    onFailure: (error) => Result.map(
-      encodeWorkflowPayload(durableCodec(definition.failure), error),
-      (encoded) => failure(identity, encoded)
-    )
+    onSuccess: (value) =>
+      Result.map(encodeWorkflowPayload(durableCodec(definition.success), value), (encoded) =>
+        success(identity, encoded)
+      ),
+    onFailure: (error) =>
+      Result.map(encodeWorkflowPayload(durableCodec(definition.failure), error), (encoded) =>
+        failure(identity, encoded)
+      )
   })
 }
 
-export const decodeStepResult = <
-  Definition extends Step.Any
->(
+export const decodeStepResult = <Definition extends Step.Any>(
   definition: Definition,
   input: unknown
 ): Result.Result<
   Result.Result<Step.Step.Success<Definition>, Step.Step.Failure<Definition>>,
   DurableProtocolError
 > => {
-  const decoded = decodeEnvelope(
-    input,
-    identityOf(definition),
-    () => protocolError("InvalidDefinitionIdentity")
+  const decoded = decodeEnvelope(input, identityOf(definition), () =>
+    protocolError("InvalidDefinitionIdentity")
   )
   if (Result.isFailure(decoded)) {
     return Result.fail(decoded.failure)
   }
   return Match.valueTags(decoded.success, {
-    Success: ({ value }) => Result.map(
-      decodeWorkflowPayload(durableCodec(definition.success), value),
-      (decoded) => Result.succeed(decoded as Step.Step.Success<Definition>)
-    ),
-    Failure: ({ error }) => Result.map(
-      decodeWorkflowPayload(durableCodec(definition.failure), error),
-      (decoded) => Result.fail(decoded as Step.Step.Failure<Definition>)
-    ),
+    Success: ({ value }) =>
+      Result.map(decodeWorkflowPayload(durableCodec(definition.success), value), (decoded) =>
+        Result.succeed(decoded as Step.Step.Success<Definition>)
+      ),
+    Failure: ({ error }) =>
+      Result.map(decodeWorkflowPayload(durableCodec(definition.failure), error), (decoded) =>
+        Result.fail(decoded as Step.Step.Failure<Definition>)
+      ),
     InvalidInput: () => Result.fail(protocolError("InvalidOutcome"))
   })
 }
 
 export const encodeWorkflowResult = <Definition extends Workflow.Any>(
   definition: Definition,
-  result: Result.Result<Workflow.Workflow.Success<Definition>, Workflow.Workflow.Failure<Definition>>
+  result: Result.Result<
+    Workflow.Workflow.Success<Definition>,
+    Workflow.Workflow.Failure<Definition>
+  >
 ): Result.Result<DurableOutcome<DurableValue, DurableValue>, DurableProtocolError> => {
   const identity = identityOf(definition)
   return Result.match(result, {
-    onSuccess: (value) => Result.map(
-      encodeWorkflowPayload(durableCodec(definition.success), value),
-      (encoded) => success(identity, encoded)
-    ),
-    onFailure: (error) => Result.map(
-      encodeWorkflowPayload(durableCodec(definition.failure), error),
-      (encoded) => failure(identity, encoded)
-    )
+    onSuccess: (value) =>
+      Result.map(encodeWorkflowPayload(durableCodec(definition.success), value), (encoded) =>
+        success(identity, encoded)
+      ),
+    onFailure: (error) =>
+      Result.map(encodeWorkflowPayload(durableCodec(definition.failure), error), (encoded) =>
+        failure(identity, encoded)
+      )
   })
 }
 
@@ -271,30 +260,28 @@ export const decodeWorkflowResult = <Definition extends Workflow.Any>(
   Result.Result<Workflow.Workflow.Success<Definition>, Workflow.Workflow.Failure<Definition>>,
   DefinitionConflict | DurableProtocolError | InvalidWorkflowInput
 > => {
-  const decoded = decodeEnvelope(
-    input,
-    identityOf(definition),
-    (actual) => actual.kind === "Workflow"
+  const decoded = decodeEnvelope(input, identityOf(definition), (actual) =>
+    actual.kind === "Workflow"
       ? new DefinitionConflict({
-        executionId,
-        expectedName: definition.name,
-        expectedVersion: definition.version,
-        actualName: actual.name,
-        actualVersion: actual.version
-      })
+          executionId,
+          expectedName: definition.name,
+          expectedVersion: definition.version,
+          actualName: actual.name,
+          actualVersion: actual.version
+        })
       : protocolError("InvalidDefinitionIdentity")
   )
   if (Result.isFailure(decoded)) {
     return Result.fail(decoded.failure)
   }
   return Match.valueTags(decoded.success, {
-    Success: ({ value }) => Result.map(
-        decodeWorkflowPayload(durableCodec(definition.success), value),
-        (decoded) => Result.succeed(decoded as Workflow.Workflow.Success<Definition>)
+    Success: ({ value }) =>
+      Result.map(decodeWorkflowPayload(durableCodec(definition.success), value), (decoded) =>
+        Result.succeed(decoded as Workflow.Workflow.Success<Definition>)
       ),
-    Failure: ({ error }) => Result.map(
-        decodeWorkflowPayload(durableCodec(definition.failure), error),
-        (decoded) => Result.fail(decoded as Workflow.Workflow.Failure<Definition>)
+    Failure: ({ error }) =>
+      Result.map(decodeWorkflowPayload(durableCodec(definition.failure), error), (decoded) =>
+        Result.fail(decoded as Workflow.Workflow.Failure<Definition>)
       ),
     InvalidInput: () => Result.fail(workflowInputError(definition.name, definition.version))
   })

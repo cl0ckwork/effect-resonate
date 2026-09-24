@@ -69,9 +69,12 @@ describe("NetworkGate", () => {
       unicast: "test://worker",
       anycast: "test://any",
       match: (target: string) => target,
-      init: () => Effect.runPromise(Deferred.await(releaseInitialization).pipe(
-        Effect.tap(() => Effect.sync(() => events.push("initialized")))
-      )),
+      init: () =>
+        Effect.runPromise(
+          Deferred.await(releaseInitialization).pipe(
+            Effect.tap(() => Effect.sync(() => events.push("initialized")))
+          )
+        ),
       stop: async () => {
         events.push("stopped")
       },

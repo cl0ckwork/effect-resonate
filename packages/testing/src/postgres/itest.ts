@@ -9,6 +9,11 @@ export const itest = <A, E>(
   name: string,
   test: () => Effect.Effect<A, E, Services | Scope.Scope>,
   options: PostgresItestOptions = {}
-): void => effectIt.live(name, () => test().pipe(Effect.provide(
-  Layer.fresh(makePostgresItestLayer(options)).pipe(Layer.provide(PostgresTestEnv.layer))
-)))
+): void =>
+  effectIt.live(name, () =>
+    test().pipe(
+      Effect.provide(
+        Layer.fresh(makePostgresItestLayer(options)).pipe(Layer.provide(PostgresTestEnv.layer))
+      )
+    )
+  )

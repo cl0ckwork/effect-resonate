@@ -1,8 +1,5 @@
 import { Effect } from "effect"
-import {
-  DuplicateDefinition,
-  InvalidDefinition
-} from "../CoreExecutionError.js"
+import { DuplicateDefinition, InvalidDefinition } from "../CoreExecutionError.js"
 import type * as ResonateFunctions from "../ResonateFunctions.js"
 import type * as Step from "../Step.js"
 import type * as Workflow from "../Workflow.js"
@@ -15,13 +12,11 @@ export interface DefinitionRegistry {
 
 export type Error = InvalidDefinition | DuplicateDefinition
 
-const invalid = (
-  definition: Definition,
-  issue: InvalidDefinition["issue"]
-): InvalidDefinition => new InvalidDefinition({
-  definitionKind: definition.kind,
-  issue
-})
+const invalid = (definition: Definition, issue: InvalidDefinition["issue"]): InvalidDefinition =>
+  new InvalidDefinition({
+    definitionKind: definition.kind,
+    issue
+  })
 
 const validateIdentity = (definition: Definition): InvalidDefinition | undefined => {
   if (definition.name.trim().length === 0) {
@@ -70,23 +65,22 @@ const validateDefinition = (definition: Definition): InvalidDefinition | undefin
 }
 
 /** Validates dynamic identities and freezes one exact registration sequence. */
-export const make = (
-  group: ResonateFunctions.Any
-): Effect.Effect<DefinitionRegistry, Error> => Effect.gen(function*() {
-  const identities = new Set<string>()
-  for (const definition of group.functions) {
-    const issue = validateDefinition(definition)
-    if (issue !== undefined) {
-      return yield* issue
+export const make = (group: ResonateFunctions.Any): Effect.Effect<DefinitionRegistry, Error> =>
+  Effect.gen(function* () {
+    const identities = new Set<string>()
+    for (const definition of group.functions) {
+      const issue = validateDefinition(definition)
+      if (issue !== undefined) {
+        return yield* issue
+      }
+      const identity = `${definition.name}\u0000${definition.version}`
+      if (identities.has(identity)) {
+        return yield* new DuplicateDefinition({
+          definitionName: definition.name,
+          definitionVersion: definition.version
+        })
+      }
+      identities.add(identity)
     }
-    const identity = `${definition.name}\u0000${definition.version}`
-    if (identities.has(identity)) {
-      return yield* new DuplicateDefinition({
-        definitionName: definition.name,
-        definitionVersion: definition.version
-      })
-    }
-    identities.add(identity)
-  }
-  return { definitions: Object.freeze([...group.functions]) }
-})
+    return { definitions: Object.freeze([...group.functions]) }
+  })

@@ -31,12 +31,14 @@ describe("SDK adapter contracts", () => {
       success: Schema.Struct({ reservationId: Schema.String, stepId: Schema.String }),
       failure: Schema.Struct({ reason: Schema.String })
     })
-    const ReserveLive = Reserve.toLayer((input) => Effect.gen(function*() {
+    const ReserveLive = Reserve.toLayer((input) =>
+      Effect.gen(function* () {
         const context = yield* StepContext
         observedIds.push(context.id)
         observedAttempts.push(context.attempt)
         return { reservationId: `reservation-${input.sku}`, stepId: context.id }
-      }))
+      })
+    )
     const Checkout = Workflow.make({
       name: "checkout",
       version: 1,
@@ -50,18 +52,20 @@ describe("SDK adapter contracts", () => {
       failure: Schema.Struct({ reason: Schema.String })
     })
     const CheckoutLive = Checkout.toLayer(async (context, input) => {
-        const reservation = await context.run(Reserve, input)
-        if (Result.isFailure(reservation)) {
-          return Result.fail(reservation.failure)
-        }
-        await context.sleep(0)
-        const timestamp = await context.date.now()
-        const random = await context.math.random()
-        return Result.succeed({ ...reservation.success, timestamp, random })
-      })
+      const reservation = await context.run(Reserve, input)
+      if (Result.isFailure(reservation)) {
+        return Result.fail(reservation.failure)
+      }
+      await context.sleep(0)
+      const timestamp = await context.date.now()
+      const random = await context.math.random()
+      return Result.succeed({ ...reservation.success, timestamp, random })
+    })
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, ReserveLive))
     await runtime.context()
-    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+    const checkoutHandler = await Effect.runPromise(
+      Checkout.handler.pipe(Effect.provide(CheckoutLive))
+    )
 
     resonate.register(Reserve.name, StepAdapter.make(Reserve, runtime.runPromise), {
       version: Reserve.version
@@ -109,10 +113,12 @@ describe("SDK adapter contracts", () => {
       success: Schema.Never,
       failure: Schema.Struct({ reason: Schema.String })
     })
-    const DeclineLive = Decline.toLayer(() => Effect.suspend(() => {
+    const DeclineLive = Decline.toLayer(() =>
+      Effect.suspend(() => {
         attempts += 1
         return Effect.fail({ reason: "declined" })
-      }))
+      })
+    )
     const Checkout = Workflow.make({
       name: "checkout.decline",
       version: 1,
@@ -120,12 +126,16 @@ describe("SDK adapter contracts", () => {
       success: Schema.Null,
       failure: Schema.Struct({ reason: Schema.String })
     })
-    const CheckoutLive = Checkout.toLayer(async (context) => context.run(Decline, null, {
-      retryPolicy: new Constant({ delay: 0, maxRetries: 3 })
-      }))
+    const CheckoutLive = Checkout.toLayer(async (context) =>
+      context.run(Decline, null, {
+        retryPolicy: new Constant({ delay: 0, maxRetries: 3 })
+      })
+    )
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, DeclineLive))
     await runtime.context()
-    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+    const checkoutHandler = await Effect.runPromise(
+      Checkout.handler.pipe(Effect.provide(CheckoutLive))
+    )
 
     resonate.register(Decline.name, StepAdapter.make(Decline, runtime.runPromise), {
       version: Decline.version
@@ -138,7 +148,11 @@ describe("SDK adapter contracts", () => {
 
     try {
       const handle = await checkout.run("checkout-declined", null)
-      const decoded = DurableOutcome.decodeWorkflowResult(Checkout, handle.id, await handle.result())
+      const decoded = DurableOutcome.decodeWorkflowResult(
+        Checkout,
+        handle.id,
+        await handle.result()
+      )
 
       assert.deepStrictEqual(decoded, Result.succeed(Result.fail({ reason: "declined" })))
       assert.strictEqual(attempts, 1)
@@ -162,7 +176,8 @@ describe("SDK adapter contracts", () => {
       success: Schema.String,
       failure: Schema.String
     })
-    const FlakyLive = Flaky.toLayer(() => Effect.gen(function*() {
+    const FlakyLive = Flaky.toLayer(() =>
+      Effect.gen(function* () {
         const context = yield* StepContext
         observedIds.push(context.id)
         observedAttempts.push(context.attempt)
@@ -170,7 +185,8 @@ describe("SDK adapter contracts", () => {
           return yield* Effect.die("first attempt fails")
         }
         return "recovered"
-      }))
+      })
+    )
     const Recover = Workflow.make({
       name: "inventory.recover",
       version: 1,
@@ -178,21 +194,23 @@ describe("SDK adapter contracts", () => {
       success: Schema.String,
       failure: Schema.String
     })
-    const RecoverLive = Recover.toLayer(async (context) => context.run(Flaky, null, {
-      retryPolicy: new Constant({ delay: 0, maxRetries: 1 })
-      }))
+    const RecoverLive = Recover.toLayer(async (context) =>
+      context.run(Flaky, null, {
+        retryPolicy: new Constant({ delay: 0, maxRetries: 1 })
+      })
+    )
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, FlakyLive))
     await runtime.context()
-    const recoverHandler = await Effect.runPromise(Recover.handler.pipe(Effect.provide(RecoverLive)))
+    const recoverHandler = await Effect.runPromise(
+      Recover.handler.pipe(Effect.provide(RecoverLive))
+    )
 
     resonate.register(Flaky.name, StepAdapter.make(Flaky, runtime.runPromise), {
       version: Flaky.version
     })
-    const recover = resonate.register(
-      Recover.name,
-      WorkflowAdapter.make(Recover, recoverHandler),
-      { version: Recover.version }
-    )
+    const recover = resonate.register(Recover.name, WorkflowAdapter.make(Recover, recoverHandler), {
+      version: Recover.version
+    })
 
     try {
       const handle = await recover.run("inventory-recover", null)
@@ -219,10 +237,12 @@ describe("SDK adapter contracts", () => {
       success: Schema.Never,
       failure: Schema.Never
     })
-    const BrokenLive = Broken.toLayer(() => Effect.suspend(() => {
+    const BrokenLive = Broken.toLayer(() =>
+      Effect.suspend(() => {
         attempts += 1
         return Effect.die(new TypeError("do not retry"))
-      }))
+      })
+    )
     const Checkout = Workflow.make({
       name: "checkout.non-retryable",
       version: 1,
@@ -230,13 +250,17 @@ describe("SDK adapter contracts", () => {
       success: Schema.Never,
       failure: Schema.Never
     })
-    const CheckoutLive = Checkout.toLayer(async (context) => context.run(Broken, null, {
-      retryPolicy: new Constant({ delay: 0, maxRetries: 3 }),
-      nonRetryableErrors: [TypeError]
-    }))
+    const CheckoutLive = Checkout.toLayer(async (context) =>
+      context.run(Broken, null, {
+        retryPolicy: new Constant({ delay: 0, maxRetries: 3 }),
+        nonRetryableErrors: [TypeError]
+      })
+    )
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, BrokenLive))
     await runtime.context()
-    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+    const checkoutHandler = await Effect.runPromise(
+      Checkout.handler.pipe(Effect.provide(CheckoutLive))
+    )
 
     resonate.register(Broken.name, StepAdapter.make(Broken, runtime.runPromise), {
       version: Broken.version
@@ -277,10 +301,12 @@ describe("SDK adapter contracts", () => {
       success: Schema.Never,
       failure: Schema.Never
     })
-    const BrokenLive = Broken.toLayer(() => Effect.suspend(() => {
+    const BrokenLive = Broken.toLayer(() =>
+      Effect.suspend(() => {
         attempts += 1
         return Effect.die(new TypeError("boom"))
-      }))
+      })
+    )
     const Checkout = Workflow.make({
       name: "checkout.broken",
       version: 1,
@@ -289,12 +315,14 @@ describe("SDK adapter contracts", () => {
       failure: Schema.Null
     })
     const CheckoutLive = Checkout.toLayer(async (context) => {
-        await context.run(Broken, null)
-        return Result.succeed(null)
-      })
+      await context.run(Broken, null)
+      return Result.succeed(null)
+    })
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, BrokenLive))
     await runtime.context()
-    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+    const checkoutHandler = await Effect.runPromise(
+      Checkout.handler.pipe(Effect.provide(CheckoutLive))
+    )
 
     resonate.register(Broken.name, StepAdapter.make(Broken, runtime.runPromise), {
       version: Broken.version
@@ -337,10 +365,12 @@ describe("SDK adapter contracts", () => {
       failure: Schema.Null
     })
     const ApprovalLive = Approval.toLayer(async (context) => {
-        const approval = await context.promise(Schema.Struct({ approved: Schema.Boolean }))
-        return Result.succeed(approval.approved)
-      })
-    const approvalHandler = await Effect.runPromise(Approval.handler.pipe(Effect.provide(ApprovalLive)))
+      const approval = await context.promise(Schema.Struct({ approved: Schema.Boolean }))
+      return Result.succeed(approval.approved)
+    })
+    const approvalHandler = await Effect.runPromise(
+      Approval.handler.pipe(Effect.provide(ApprovalLive))
+    )
     const approval = resonate.register(
       Approval.name,
       WorkflowAdapter.make(Approval, approvalHandler),
@@ -381,12 +411,14 @@ describe("SDK adapter contracts", () => {
       failure: Schema.Null
     })
     const CheckoutLive = Checkout.toLayer(async (context) => {
-        await context.run(Blocked, null)
-        return Result.succeed(null)
-      })
+      await context.run(Blocked, null)
+      return Result.succeed(null)
+    })
     const runtime = ManagedRuntime.make(Layer.merge(AdapterSupervisor.layer, BlockedLive))
     await runtime.context()
-    const checkoutHandler = await Effect.runPromise(Checkout.handler.pipe(Effect.provide(CheckoutLive)))
+    const checkoutHandler = await Effect.runPromise(
+      Checkout.handler.pipe(Effect.provide(CheckoutLive))
+    )
 
     resonate.register(Blocked.name, StepAdapter.make(Blocked, runtime.runPromise), {
       version: Blocked.version
@@ -398,11 +430,7 @@ describe("SDK adapter contracts", () => {
     )
 
     try {
-      const handle = await checkout.run(
-        "checkout-timeout",
-        null,
-        resonate.options({ timeout: 20 })
-      )
+      const handle = await checkout.run("checkout-timeout", null, resonate.options({ timeout: 20 }))
       await rejectionOf(handle.result())
       const record = await resonate.promises.get(handle.id)
 

@@ -15,8 +15,8 @@ describe("Step.make", () => {
       failure: Schema.Never
     })
     const implementation = definition.toLayer((input) => {
-        executions += 1
-        return Effect.succeed({ reserved: input.sku })
+      executions += 1
+      return Effect.succeed({ reserved: input.sku })
     })
 
     assert.strictEqual(executions, 0)
@@ -95,8 +95,8 @@ describe("Workflow.make", () => {
       failure: Schema.Struct({ reason: Schema.String })
     })
     const implementation = definition.toLayer(async () => {
-        executions += 1
-        return Result.succeed({ accepted: true })
+      executions += 1
+      return Result.succeed({ accepted: true })
     })
 
     assert.strictEqual(executions, 0)
@@ -105,7 +105,6 @@ describe("Workflow.make", () => {
     assert.strictEqual(definition.version, 1)
     assert.isTrue(Layer.isLayer(implementation))
   })
-
 })
 
 describe("Workflow.evolve", () => {
@@ -153,7 +152,10 @@ describe("ResonateFunctions.make", () => {
     const functions = ResonateFunctions.make(Reserve, Checkout)
 
     assert.deepStrictEqual(functions.functions, [Reserve, Checkout])
-    assert.deepStrictEqual(functions.functions.map((fn) => fn.kind), ["Step", "Workflow"])
+    assert.deepStrictEqual(
+      functions.functions.map((fn) => fn.kind),
+      ["Step", "Workflow"]
+    )
     assert.strictEqual(typeof functions, "object")
     assert.isTrue(Object.isFrozen(functions))
     assert.isTrue(Object.isFrozen(functions.functions))

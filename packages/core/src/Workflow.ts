@@ -66,61 +66,76 @@ export interface Any {
 }
 
 export declare namespace Workflow {
-  export type Name<Definition> = Definition extends Workflow<
-    infer Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Name : never
-  export type Version<Definition> = Definition extends Workflow<
-    infer _Name,
-    infer Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Version : never
-  export type Input<Definition> = Definition extends Workflow<
-    infer _Name,
-    infer _Version,
-    infer Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Input : never
-  export type Success<Definition> = Definition extends Workflow<
-    infer _Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Success : never
-  export type Failure<Definition> = Definition extends Workflow<
-    infer _Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Failure : never
+  export type Name<Definition> =
+    Definition extends Workflow<
+      infer Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Name
+      : never
+  export type Version<Definition> =
+    Definition extends Workflow<
+      infer _Name,
+      infer Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Version
+      : never
+  export type Input<Definition> =
+    Definition extends Workflow<
+      infer _Name,
+      infer _Version,
+      infer Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Input
+      : never
+  export type Success<Definition> =
+    Definition extends Workflow<
+      infer _Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Success
+      : never
+  export type Failure<Definition> =
+    Definition extends Workflow<
+      infer _Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Failure
+      : never
   export type Implementation<Definition extends Any> = Handler<Definition>
 }
 
@@ -167,9 +182,28 @@ const makeDefinition = <
   FailureEncoded extends DurableValue,
   Previous extends Any | undefined
 >(
-  options: MakeOptions<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>,
+  options: MakeOptions<
+    Name,
+    Version,
+    Input,
+    InputEncoded,
+    Success,
+    SuccessEncoded,
+    Failure,
+    FailureEncoded
+  >,
   previous: Previous
-): Workflow<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, Previous> => {
+): Workflow<
+  Name,
+  Version,
+  Input,
+  InputEncoded,
+  Success,
+  SuccessEncoded,
+  Failure,
+  FailureEncoded,
+  Previous
+> => {
   type Definition = Workflow<
     Name,
     Version,
@@ -197,8 +231,9 @@ const makeDefinition = <
     failure: options.failure,
     handler,
     previous,
-    toLayer: (execute: HandlerService<Input, Success, Failure>["execute"]): Layer.Layer<Implementation> =>
-      Layer.succeed(handler, { execute })
+    toLayer: (
+      execute: HandlerService<Input, Success, Failure>["execute"]
+    ): Layer.Layer<Implementation> => Layer.succeed(handler, { execute })
   }
 
   return Object.freeze(definition) as Definition
@@ -224,7 +259,17 @@ export const make = <
     Failure,
     FailureEncoded
   >
-): Workflow<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, undefined> => {
+): Workflow<
+  Name,
+  Version,
+  Input,
+  InputEncoded,
+  Success,
+  SuccessEncoded,
+  Failure,
+  FailureEncoded,
+  undefined
+> => {
   return makeDefinition(options, undefined)
 }
 
@@ -240,7 +285,15 @@ export const evolve = <
   FailureEncoded extends DurableValue
 >(
   previous: Definition,
-  options: EvolveOptions<Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>
+  options: EvolveOptions<
+    Version,
+    Input,
+    InputEncoded,
+    Success,
+    SuccessEncoded,
+    Failure,
+    FailureEncoded
+  >
 ): Workflow<
   Definition["name"],
   Version,

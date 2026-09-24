@@ -19,10 +19,7 @@ export interface Handler<Definition extends Any> {
 }
 
 export interface HandlerService<Input, Success, Failure> {
-  readonly execute: (
-    input: Input,
-    context: StepContextService
-  ) => Effect.Effect<Success, Failure>
+  readonly execute: (input: Input, context: StepContextService) => Effect.Effect<Success, Failure>
 }
 
 /** An inert, versioned durable step contract. */
@@ -68,61 +65,76 @@ export interface Any {
 }
 
 export declare namespace Step {
-  export type Name<Definition> = Definition extends Step<
-    infer Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Name : never
-  export type Version<Definition> = Definition extends Step<
-    infer _Name,
-    infer Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Version : never
-  export type Input<Definition> = Definition extends Step<
-    infer _Name,
-    infer _Version,
-    infer Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Input : never
-  export type Success<Definition> = Definition extends Step<
-    infer _Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer Success,
-    infer _SuccessEncoded,
-    infer _Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Success : never
-  export type Failure<Definition> = Definition extends Step<
-    infer _Name,
-    infer _Version,
-    infer _Input,
-    infer _InputEncoded,
-    infer _Success,
-    infer _SuccessEncoded,
-    infer Failure,
-    infer _FailureEncoded,
-    infer _Previous
-  > ? Failure : never
+  export type Name<Definition> =
+    Definition extends Step<
+      infer Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Name
+      : never
+  export type Version<Definition> =
+    Definition extends Step<
+      infer _Name,
+      infer Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Version
+      : never
+  export type Input<Definition> =
+    Definition extends Step<
+      infer _Name,
+      infer _Version,
+      infer Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Input
+      : never
+  export type Success<Definition> =
+    Definition extends Step<
+      infer _Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer Success,
+      infer _SuccessEncoded,
+      infer _Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Success
+      : never
+  export type Failure<Definition> =
+    Definition extends Step<
+      infer _Name,
+      infer _Version,
+      infer _Input,
+      infer _InputEncoded,
+      infer _Success,
+      infer _SuccessEncoded,
+      infer Failure,
+      infer _FailureEncoded,
+      infer _Previous
+    >
+      ? Failure
+      : never
   export type Implementation<Definition extends Any> = Handler<Definition>
 }
 
@@ -169,9 +181,28 @@ const makeDefinition = <
   FailureEncoded extends DurableValue,
   Previous extends Any | undefined
 >(
-  options: MakeOptions<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>,
+  options: MakeOptions<
+    Name,
+    Version,
+    Input,
+    InputEncoded,
+    Success,
+    SuccessEncoded,
+    Failure,
+    FailureEncoded
+  >,
   previous: Previous
-): Step<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, Previous> => {
+): Step<
+  Name,
+  Version,
+  Input,
+  InputEncoded,
+  Success,
+  SuccessEncoded,
+  Failure,
+  FailureEncoded,
+  Previous
+> => {
   type Definition = Step<
     Name,
     Version,
@@ -238,7 +269,17 @@ export const make = <
     Failure,
     FailureEncoded
   >
-): Step<Name, Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded, undefined> => {
+): Step<
+  Name,
+  Version,
+  Input,
+  InputEncoded,
+  Success,
+  SuccessEncoded,
+  Failure,
+  FailureEncoded,
+  undefined
+> => {
   return makeDefinition(options, undefined)
 }
 
@@ -254,7 +295,15 @@ export const evolve = <
   FailureEncoded extends DurableValue
 >(
   previous: Definition,
-  options: EvolveOptions<Version, Input, InputEncoded, Success, SuccessEncoded, Failure, FailureEncoded>
+  options: EvolveOptions<
+    Version,
+    Input,
+    InputEncoded,
+    Success,
+    SuccessEncoded,
+    Failure,
+    FailureEncoded
+  >
 ): Step<
   Definition["name"],
   Version,

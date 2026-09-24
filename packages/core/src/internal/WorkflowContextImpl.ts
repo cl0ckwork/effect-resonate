@@ -17,11 +17,7 @@ import type {
 } from "../WorkflowContext.js"
 import * as DurableOutcome from "./DurableOutcome.js"
 import * as DurableRejection from "./DurableRejection.js"
-import {
-  decodeWorkflowPayload,
-  durableCodec,
-  encodeWorkflowPayload
-} from "./SchemaBoundary.js"
+import { decodeWorkflowPayload, durableCodec, encodeWorkflowPayload } from "./SchemaBoundary.js"
 
 const invocationOptions = (
   context: ResonateContext,
@@ -32,19 +28,17 @@ const invocationOptions = (
 const mapPromise = <Input, Output>(
   promise: ResonateDurablePromise<Input>,
   onSuccess: (value: Input) => Output
-): DurablePromise<Output> => new ResonateDurablePromise(
-  promise.id,
-  promise.then(
-    onSuccess,
-    (cause: unknown) => {
+): DurablePromise<Output> =>
+  new ResonateDurablePromise(
+    promise.id,
+    promise.then(onSuccess, (cause: unknown) => {
       const rejection = DurableRejection.decode(cause)
       if (Option.isSome(rejection)) {
         throw rejection.value
       }
       throw cause
-    }
+    })
   )
-)
 
 const rejectedPromise = <Value>(cause: unknown): DurablePromise<Value> =>
   new ResonateDurablePromise("", Promise.reject(cause))
@@ -70,13 +64,13 @@ const runStep = <Definition extends Step.Any>(
   return Result.isFailure(encoded)
     ? rejectedPromise(encoded.failure)
     : mapPromise(
-      context.run(
-        definition.name,
-        encoded.success,
-        invocationOptions(context, definition.version, options)
-      ),
-      (value) => decodeStep(definition, value)
-    )
+        context.run(
+          definition.name,
+          encoded.success,
+          invocationOptions(context, definition.version, options)
+        ),
+        (value) => decodeStep(definition, value)
+      )
 }
 
 const rpcStep = <Definition extends Step.Any>(
@@ -89,13 +83,13 @@ const rpcStep = <Definition extends Step.Any>(
   return Result.isFailure(encoded)
     ? rejectedPromise(encoded.failure)
     : mapPromise(
-      context.rpc(
-        definition.name,
-        encoded.success,
-        invocationOptions(context, definition.version, options)
-      ),
-      (value) => decodeStep(definition, value)
-    )
+        context.rpc(
+          definition.name,
+          encoded.success,
+          invocationOptions(context, definition.version, options)
+        ),
+        (value) => decodeStep(definition, value)
+      )
 }
 
 const detachedWorkflow = <Definition extends Workflow.Any>(
@@ -108,94 +102,96 @@ const detachedWorkflow = <Definition extends Workflow.Any>(
   return Result.isFailure(encoded)
     ? rejectedPromise(encoded.failure)
     : context.detached(
-      definition.name,
-      encoded.success,
-      invocationOptions(context, definition.version, options)
-    )
+        definition.name,
+        encoded.success,
+        invocationOptions(context, definition.version, options)
+      )
 }
 
 const typedPromise = <Value, Encoded extends DurableValue>(
   context: ResonateContext,
   schema: DurableCodec<Value, Encoded>,
   options: PromiseOptions | undefined
-): DurablePromise<Value> => mapPromise(
-  context.promise<unknown>(options),
-  (value) => {
+): DurablePromise<Value> =>
+  mapPromise(context.promise<unknown>(options), (value) => {
     const decoded = decodeWorkflowPayload(schema, value)
     if (Result.isFailure(decoded)) {
       throw decoded.failure
     }
     return decoded.success
-  }
-)
+  })
 
 const rawRun = (
   context: ResonateContext,
   func: AnyFunc | string,
   arguments_: ReadonlyArray<unknown>
-): DurablePromise<unknown> => Predicate.isString(func)
-  ? context.run<unknown>(func, ...arguments_)
-  : context.run(func, ...arguments_)
+): DurablePromise<unknown> =>
+  Predicate.isString(func)
+    ? context.run<unknown>(func, ...arguments_)
+    : context.run(func, ...arguments_)
 
 const rawRpc = (
   context: ResonateContext,
   func: AnyFunc | string,
   arguments_: ReadonlyArray<unknown>
-): DurablePromise<unknown> => Predicate.isString(func)
-  ? context.rpc<unknown>(func, ...arguments_)
-  : context.rpc(func, ...arguments_)
+): DurablePromise<unknown> =>
+  Predicate.isString(func)
+    ? context.rpc<unknown>(func, ...arguments_)
+    : context.rpc(func, ...arguments_)
 
 const rawDetached = (
   context: ResonateContext,
   func: AnyFunc | string,
   arguments_: ReadonlyArray<unknown>
-) => Predicate.isString(func)
-  ? context.detached(func, ...arguments_)
-  : context.detached(func, ...arguments_)
+) =>
+  Predicate.isString(func)
+    ? context.detached(func, ...arguments_)
+    : context.detached(func, ...arguments_)
 
 export const make = (context: ResonateContext): WorkflowContext => {
   const run = ((
     funcOrDefinition: AnyFunc | string | Step.Any,
     ...arguments_: ReadonlyArray<unknown>
-  ) => Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
-    ? rawRun(context, funcOrDefinition as AnyFunc | string, arguments_)
-    : runStep(
-      context,
-      funcOrDefinition,
-      arguments_[0] as never,
-      arguments_[1] as InvocationOptions | undefined
-    )) as WorkflowContext["run"]
+  ) =>
+    Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
+      ? rawRun(context, funcOrDefinition as AnyFunc | string, arguments_)
+      : runStep(
+          context,
+          funcOrDefinition,
+          arguments_[0] as never,
+          arguments_[1] as InvocationOptions | undefined
+        )) as WorkflowContext["run"]
 
   const rpc = ((
     funcOrDefinition: AnyFunc | string | Step.Any,
     ...arguments_: ReadonlyArray<unknown>
-  ) => Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
-    ? rawRpc(context, funcOrDefinition as AnyFunc | string, arguments_)
-    : rpcStep(
-      context,
-      funcOrDefinition,
-      arguments_[0] as never,
-      arguments_[1] as InvocationOptions | undefined
-    )) as WorkflowContext["rpc"]
+  ) =>
+    Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
+      ? rawRpc(context, funcOrDefinition as AnyFunc | string, arguments_)
+      : rpcStep(
+          context,
+          funcOrDefinition,
+          arguments_[0] as never,
+          arguments_[1] as InvocationOptions | undefined
+        )) as WorkflowContext["rpc"]
 
   const detached = ((
     funcOrDefinition: AnyFunc | string | Workflow.Any,
     ...arguments_: ReadonlyArray<unknown>
-  ) => Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
-    ? rawDetached(context, funcOrDefinition as AnyFunc | string, arguments_)
-    : detachedWorkflow(
-      context,
-      funcOrDefinition,
-      arguments_[0] as never,
-      arguments_[1] as InvocationOptions | undefined
-    )) as WorkflowContext["detached"]
+  ) =>
+    Predicate.isString(funcOrDefinition) || Predicate.isFunction(funcOrDefinition)
+      ? rawDetached(context, funcOrDefinition as AnyFunc | string, arguments_)
+      : detachedWorkflow(
+          context,
+          funcOrDefinition,
+          arguments_[0] as never,
+          arguments_[1] as InvocationOptions | undefined
+        )) as WorkflowContext["detached"]
 
-  const promise = ((
-    schemaOrOptions?: Schema.Top | PromiseOptions,
-    options?: PromiseOptions
-  ) => Schema.isSchema(schemaOrOptions)
-    ? typedPromise(context, schemaOrOptions as DurableCodec<unknown>, options)
-    : context.promise(schemaOrOptions)) as WorkflowContext["promise"]
+  const promise = ((schemaOrOptions?: Schema.Top | PromiseOptions, options?: PromiseOptions) =>
+    Schema.isSchema(schemaOrOptions)
+      ? typedPromise(context, schemaOrOptions as DurableCodec<unknown>, options)
+      : context.promise(schemaOrOptions)) as WorkflowContext["promise"]
 
   const getDependency: Info["getDependency"] = <Value>(key: string) =>
     context.getDependency<Value>(key)

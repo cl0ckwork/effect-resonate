@@ -21,21 +21,27 @@ const expectSuccess = <Success, Error>(options: {
   readonly assertion: string
   readonly executionIds: ReadonlyArray<string>
   readonly exit: Exit.Exit<Success, Error>
-}): Effect.Effect<Success, ConformanceFailure, NetworkHarness> => Exit.match(options.exit, {
-  onFailure: () => assertConformance({
-    scenario: options.scenario,
-    condition: false,
-    assertion: options.assertion,
-    executionIds: options.executionIds
-  }).pipe(Effect.andThen(Effect.die("unreachable"))),
-  onSuccess: Effect.succeed
-})
+}): Effect.Effect<Success, ConformanceFailure, NetworkHarness> =>
+  Exit.match(options.exit, {
+    onFailure: () =>
+      assertConformance({
+        scenario: options.scenario,
+        condition: false,
+        assertion: options.assertion,
+        executionIds: options.executionIds
+      }).pipe(Effect.andThen(Effect.die("unreachable"))),
+    onSuccess: Effect.succeed
+  })
 
 /**
  * Proves that a checkpointed child is reused after one worker stops and a new
  * worker attaches to the same isolated durable state.
  */
-export const replayRecovery: Effect.Effect<void, ConformanceFailure, NetworkHarness | ResonateNetwork> = Effect.gen(function*() {
+export const replayRecovery: Effect.Effect<
+  void,
+  ConformanceFailure,
+  NetworkHarness | ResonateNetwork
+> = Effect.gen(function* () {
   const harness = yield* NetworkHarness
   const NetworkLive = Layer.succeed(ResonateNetwork, yield* ResonateNetwork)
   const scenario = replayRecoveryScenario
@@ -67,11 +73,13 @@ export const replayRecovery: Effect.Effect<void, ConformanceFailure, NetworkHarn
   const Functions = ResonateFunctions.make(Checkpoint, Recover)
   const dependencies = Layer.mergeAll(
     NetworkLive,
-    Checkpoint.toLayer(() => Effect.gen(function*() {
-      const context = yield* StepContext
-      attempts.push(context.id)
-      return "checkpointed"
-    })),
+    Checkpoint.toLayer(() =>
+      Effect.gen(function* () {
+        const context = yield* StepContext
+        attempts.push(context.id)
+        return "checkpointed"
+      })
+    ),
     Recover.toLayer(async (context) => {
       const checkpoint = Result.getOrThrow(await context.run(Checkpoint, null))
       const resumed = await context.promise(Schema.String)
@@ -84,65 +92,83 @@ export const replayRecovery: Effect.Effect<void, ConformanceFailure, NetworkHarn
     drainTimeout: harness.timing.scenarioTimeout
   }).pipe(Layer.provide(dependencies))
 
-  yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    const started = yield* worker.runExit({
-      effect: ResonateClient.run(executionId, Recover, null)
-    })
-    yield* expectSuccess({
-      scenario,
-      assertion: "the first worker must activate the recovery workflow",
-      executionIds,
-      exit: started
-    })
-    yield* waitFor({
-      scenario,
-      assertion: "the first worker must durably checkpoint the child before stopping",
-      executionIds,
-      poll: worker.runExit({
-        effect: ResonateClient.promises.get(`${executionId}:0`)
-      }).pipe(Effect.map(Exit.match({
-        onFailure: () => Option.none(),
-        onSuccess: (record) => record.state === "resolved" ? Option.some(record) : Option.none()
-      })))
-    })
-  }))
-
-  const output = yield* Effect.scoped(Effect.gen(function*() {
-    const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
-    yield* waitFor({
-      scenario,
-      assertion: "the replacement worker must replay far enough to recreate the durable wait",
-      executionIds,
-      poll: worker.runExit({
-        effect: ResonateClient.promises.get(`${executionId}:1`)
-      }).pipe(Effect.map(Exit.match({
-        onFailure: () => Option.none(),
-        onSuccess: (record) => record.state === "pending" ? Option.some(record) : Option.none()
-      })))
-    })
-    const resolved = yield* worker.runExit({
-      effect: ResonateClient.promises.resolve(`${executionId}:1`, Schema.String, "resumed")
-    })
-    yield* expectSuccess({
-      scenario,
-      assertion: "the replacement worker must resolve the durable wait",
-      executionIds,
-      exit: resolved
-    })
-    const result = yield* worker.runExit({
-      effect: Effect.gen(function*() {
-        const handle = yield* ResonateClient.get(executionId, Recover)
-        return yield* handle.result()
+  yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      const started = yield* worker.runExit({
+        effect: ResonateClient.run(executionId, Recover, null)
+      })
+      yield* expectSuccess({
+        scenario,
+        assertion: "the first worker must activate the recovery workflow",
+        executionIds,
+        exit: started
+      })
+      yield* waitFor({
+        scenario,
+        assertion: "the first worker must durably checkpoint the child before stopping",
+        executionIds,
+        poll: worker
+          .runExit({
+            effect: ResonateClient.promises.get(`${executionId}:0`)
+          })
+          .pipe(
+            Effect.map(
+              Exit.match({
+                onFailure: () => Option.none(),
+                onSuccess: (record) =>
+                  record.state === "resolved" ? Option.some(record) : Option.none()
+              })
+            )
+          )
       })
     })
-    return yield* expectSuccess({
-      scenario,
-      assertion: "the replacement worker must attach and complete the original execution",
-      executionIds,
-      exit: result
+  )
+
+  const output = yield* Effect.scoped(
+    Effect.gen(function* () {
+      const worker = yield* startWorker({ scenario, executionIds, layer: ClientLive })
+      yield* waitFor({
+        scenario,
+        assertion: "the replacement worker must replay far enough to recreate the durable wait",
+        executionIds,
+        poll: worker
+          .runExit({
+            effect: ResonateClient.promises.get(`${executionId}:1`)
+          })
+          .pipe(
+            Effect.map(
+              Exit.match({
+                onFailure: () => Option.none(),
+                onSuccess: (record) =>
+                  record.state === "pending" ? Option.some(record) : Option.none()
+              })
+            )
+          )
+      })
+      const resolved = yield* worker.runExit({
+        effect: ResonateClient.promises.resolve(`${executionId}:1`, Schema.String, "resumed")
+      })
+      yield* expectSuccess({
+        scenario,
+        assertion: "the replacement worker must resolve the durable wait",
+        executionIds,
+        exit: resolved
+      })
+      const result = yield* worker.runExit({
+        effect: Effect.gen(function* () {
+          const handle = yield* ResonateClient.get(executionId, Recover)
+          return yield* handle.result()
+        })
+      })
+      return yield* expectSuccess({
+        scenario,
+        assertion: "the replacement worker must attach and complete the original execution",
+        executionIds,
+        exit: result
+      })
     })
-  }))
+  )
 
   yield* assertConformance({
     scenario,

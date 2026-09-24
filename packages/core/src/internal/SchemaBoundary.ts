@@ -17,10 +17,7 @@ export const durableCodec = (
 ): Schema.Codec<unknown, DurableValue, never, never> =>
   schema as Schema.Codec<unknown, DurableValue, never, never>
 
-const parse = <A, E>(
-  evaluate: () => Result.Result<A, unknown>,
-  error: E
-): Result.Result<A, E> =>
+const parse = <A, E>(evaluate: () => Result.Result<A, unknown>, error: E): Result.Result<A, E> =>
   Result.flatMap(
     Result.try({
       try: evaluate,
@@ -69,10 +66,11 @@ export const encodeWorkflowInput = <A, Encoded extends DurableValue>(
   const error = workflowInputError(workflowName, workflowVersion)
   return Result.flatMap(
     parse(() => Schema.encodeResult(codec, strict)(input), error),
-    (encoded) => Result.map(
-      parse(() => Schema.decodeUnknownResult(DurableValueSchema, strict)(encoded), error),
-      () => encoded
-    )
+    (encoded) =>
+      Result.map(
+        parse(() => Schema.decodeUnknownResult(DurableValueSchema, strict)(encoded), error),
+        () => encoded
+      )
   )
 }
 
@@ -94,9 +92,10 @@ export const encodeWorkflowPayload = <A, Encoded extends DurableValue>(
   const error = protocolError("PayloadEncodeFailed")
   return Result.flatMap(
     parse(() => Schema.encodeResult(codec, strict)(value), error),
-    (encoded) => Result.map(
-      parse(() => Schema.decodeUnknownResult(DurableValueSchema, strict)(encoded), error),
-      () => encoded
-    )
+    (encoded) =>
+      Result.map(
+        parse(() => Schema.decodeUnknownResult(DurableValueSchema, strict)(encoded), error),
+        () => encoded
+      )
   )
 }

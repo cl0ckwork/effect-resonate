@@ -1,18 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
-import {
-  Cause,
-  Context,
-  Deferred,
-  Effect,
-  Exit,
-  Layer,
-  ManagedRuntime,
-  Match
-} from "effect"
-import {
-  AdapterSupervisor,
-  type Completion
-} from "../AdapterSupervisor.js"
+import { Cause, Context, Deferred, Effect, Exit, Layer, ManagedRuntime, Match } from "effect"
+import { AdapterSupervisor, type Completion } from "../AdapterSupervisor.js"
 
 const makeRuntime = () => ManagedRuntime.make(AdapterSupervisor.layer)
 
@@ -62,9 +50,9 @@ describe("AdapterSupervisor", () => {
     const runtime = makeRuntime()
     await runtime.context()
 
-    const exit = completedExit(await runtime.runPromise(
-      Effect.die("boom").pipe(AdapterSupervisor.supervise)
-    ))
+    const exit = completedExit(
+      await runtime.runPromise(Effect.die("boom").pipe(AdapterSupervisor.supervise))
+    )
 
     assert.isTrue(Exit.isFailure(exit))
     if (Exit.isFailure(exit)) {
@@ -77,9 +65,9 @@ describe("AdapterSupervisor", () => {
     const runtime = makeRuntime()
     await runtime.context()
 
-    const exit = completedExit(await runtime.runPromise(
-      Effect.interrupt.pipe(AdapterSupervisor.supervise)
-    ))
+    const exit = completedExit(
+      await runtime.runPromise(Effect.interrupt.pipe(AdapterSupervisor.supervise))
+    )
 
     assert.isTrue(Exit.isFailure(exit))
     if (Exit.isFailure(exit)) {
@@ -90,10 +78,9 @@ describe("AdapterSupervisor", () => {
 
   it("runs heterogeneous work with the application service context", async () => {
     class Prefix extends Context.Service<Prefix, string>()("test/Prefix") {}
-    const runtime = ManagedRuntime.make(Layer.merge(
-      AdapterSupervisor.layer,
-      Layer.succeed(Prefix, "reservation")
-    ))
+    const runtime = ManagedRuntime.make(
+      Layer.merge(AdapterSupervisor.layer, Layer.succeed(Prefix, "reservation"))
+    )
     await runtime.context()
     const release = Effect.runSync(Deferred.make<void>())
 
@@ -104,10 +91,7 @@ describe("AdapterSupervisor", () => {
       )
     )
     const number = runtime.runPromise(
-      Deferred.await(release).pipe(
-        Effect.as(42),
-        AdapterSupervisor.supervise
-      )
+      Deferred.await(release).pipe(Effect.as(42), AdapterSupervisor.supervise)
     )
 
     await Promise.resolve()
@@ -152,10 +136,7 @@ describe("AdapterSupervisor", () => {
     await runtime.context()
     const release = Effect.runSync(Deferred.make<void>())
     const admitted = runtime.runPromise(
-      Deferred.await(release).pipe(
-        Effect.as("finished"),
-        AdapterSupervisor.supervise
-      )
+      Deferred.await(release).pipe(Effect.as("finished"), AdapterSupervisor.supervise)
     )
 
     await Promise.resolve()
@@ -174,9 +155,7 @@ describe("AdapterSupervisor", () => {
   it("fences and interrupts abandoned work before drain completes", async () => {
     const runtime = makeRuntime()
     await runtime.context()
-    const completion = runtime.runPromise(
-      Effect.never.pipe(AdapterSupervisor.supervise)
-    )
+    const completion = runtime.runPromise(Effect.never.pipe(AdapterSupervisor.supervise))
 
     await Promise.resolve()
     assert.strictEqual(await runtime.runPromise(AdapterSupervisor.size), 1)
@@ -218,16 +197,11 @@ describe("AdapterSupervisor", () => {
     await runtime.context()
     let releases = 0
     const completion = runtime.runPromise(
-      Effect.acquireRelease(
-        Effect.void,
-        () => Effect.sync(() => {
+      Effect.acquireRelease(Effect.void, () =>
+        Effect.sync(() => {
           releases += 1
         })
-      ).pipe(
-        Effect.andThen(Effect.never),
-        Effect.scoped,
-        AdapterSupervisor.supervise
-      )
+      ).pipe(Effect.andThen(Effect.never), Effect.scoped, AdapterSupervisor.supervise)
     )
 
     await Promise.resolve()

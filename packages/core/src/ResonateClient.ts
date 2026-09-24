@@ -1,4 +1,8 @@
-import type { AnyFunc, Resonate as SdkResonate, ResonateFunc as SdkResonateFunc } from "@resonatehq/sdk/async"
+import type {
+  AnyFunc,
+  Resonate as SdkResonate,
+  ResonateFunc as SdkResonateFunc
+} from "@resonatehq/sdk/async"
 import { Context, type Duration, Effect, Layer, type Schema } from "effect"
 import type {
   DefinitionConflict,
@@ -17,7 +21,9 @@ import type * as Workflow from "./Workflow.js"
 import { AdapterSupervisor } from "./internal/AdapterSupervisor.js"
 import * as ClientLive from "./internal/ClientLive.js"
 
-type MethodParameters<Method> = Method extends (...args: infer Parameters) => unknown ? Parameters : never
+type MethodParameters<Method> = Method extends (...args: infer Parameters) => unknown
+  ? Parameters
+  : never
 type FunctionReturn<Func extends AnyFunc> = Func extends (...args: infer _Arguments) => infer Return
   ? Awaited<Return>
   : never
@@ -28,14 +34,10 @@ type SdkRpcParameters = MethodParameters<SdkResonate["rpc"]>
 type SdkScheduleParameters = MethodParameters<SdkResonate["schedule"]>
 type RegisteredRunParameters<Func extends AnyFunc> = MethodParameters<SdkResonateFunc<Func>["run"]>
 type RegisteredRpcParameters<Func extends AnyFunc> = MethodParameters<SdkResonateFunc<Func>["rpc"]>
-type FunctionRunParameters<Func extends AnyFunc> = RegisteredRunParameters<Func> extends [
-  id: string,
-  ...args: infer Arguments
-] ? Arguments : never
-type FunctionRpcParameters<Func extends AnyFunc> = RegisteredRpcParameters<Func> extends [
-  id: string,
-  ...args: infer Arguments
-] ? Arguments : never
+type FunctionRunParameters<Func extends AnyFunc> =
+  RegisteredRunParameters<Func> extends [id: string, ...args: infer Arguments] ? Arguments : never
+type FunctionRpcParameters<Func extends AnyFunc> =
+  RegisteredRpcParameters<Func> extends [id: string, ...args: infer Arguments] ? Arguments : never
 type SdkClientOptions = NonNullable<ConstructorParameters<typeof SdkResonate>[0]>
 
 /** All async SDK constructor options except the Layer-owned network instance. */
@@ -71,13 +73,16 @@ export interface ResonateSchedule {
 
 /** The function-scoped client returned by `register`. */
 export interface ResonateFunc<Func extends AnyFunc> {
-  readonly run: (...args: RegisteredRunParameters<Func>) =>
-    Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
-  readonly rpc: (...args: RegisteredRpcParameters<Func>) =>
-    Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
+  readonly run: (
+    ...args: RegisteredRunParameters<Func>
+  ) => Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
+  readonly rpc: (
+    ...args: RegisteredRpcParameters<Func>
+  ) => Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
   /** Bound to the owning client, correcting the unbound SDK 0.11.5 helper. */
-  readonly options: (...args: MethodParameters<SdkResonateFunc<Func>["options"]>) =>
-    Effect.Effect<ReturnType<SdkResonateFunc<Func>["options"]>, ResonateSdkError>
+  readonly options: (
+    ...args: MethodParameters<SdkResonateFunc<Func>["options"]>
+  ) => Effect.Effect<ReturnType<SdkResonateFunc<Func>["options"]>, ResonateSdkError>
 }
 
 type PromiseGetParameters = MethodParameters<SdkPromises["get"]>
@@ -98,50 +103,60 @@ type PromiseRegisterCallbackResult = Awaited<ReturnType<SdkPromises["registerCal
 type PromiseRegisterListenerResult = Awaited<ReturnType<SdkPromises["registerListener"]>>
 
 export interface PromisesService {
-  readonly get: (...args: PromiseGetParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkPromises["get"]>>,
-    ResonateSdkError
-  >
-  readonly create: (...args: PromiseCreateParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkPromises["create"]>>,
-    ResonateSdkError
-  >
-  readonly createWithTask: (...args: PromiseCreateWithTaskParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkPromises["createWithTask"]>>,
-    ResonateSdkError
-  >
+  readonly get: (
+    ...args: PromiseGetParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkPromises["get"]>>, ResonateSdkError>
+  readonly create: (
+    ...args: PromiseCreateParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkPromises["create"]>>, ResonateSdkError>
+  readonly createWithTask: (
+    ...args: PromiseCreateWithTaskParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkPromises["createWithTask"]>>, ResonateSdkError>
   readonly resolve: {
-    (...args: PromiseResolveParameters): Effect.Effect<Awaited<ReturnType<SdkPromises["resolve"]>>, ResonateSdkError>
+    (
+      ...args: PromiseResolveParameters
+    ): Effect.Effect<Awaited<ReturnType<SdkPromises["resolve"]>>, ResonateSdkError>
     <Value, Encoded extends DurableValue>(
       id: string,
       schema: Schema.Codec<Value, Encoded, never, never>,
       value: Value
-    ): Effect.Effect<Awaited<ReturnType<SdkPromises["resolve"]>>, DurableProtocolError | ResonateSdkError>
+    ): Effect.Effect<
+      Awaited<ReturnType<SdkPromises["resolve"]>>,
+      DurableProtocolError | ResonateSdkError
+    >
   }
   readonly reject: {
-    (...args: PromiseRejectParameters): Effect.Effect<Awaited<ReturnType<SdkPromises["reject"]>>, ResonateSdkError>
+    (
+      ...args: PromiseRejectParameters
+    ): Effect.Effect<Awaited<ReturnType<SdkPromises["reject"]>>, ResonateSdkError>
     <Value, Encoded extends DurableValue>(
       id: string,
       schema: Schema.Codec<Value, Encoded, never, never>,
       value: Value
-    ): Effect.Effect<Awaited<ReturnType<SdkPromises["reject"]>>, DurableProtocolError | ResonateSdkError>
+    ): Effect.Effect<
+      Awaited<ReturnType<SdkPromises["reject"]>>,
+      DurableProtocolError | ResonateSdkError
+    >
   }
   readonly cancel: {
-    (...args: PromiseCancelParameters): Effect.Effect<Awaited<ReturnType<SdkPromises["cancel"]>>, ResonateSdkError>
+    (
+      ...args: PromiseCancelParameters
+    ): Effect.Effect<Awaited<ReturnType<SdkPromises["cancel"]>>, ResonateSdkError>
     <Value, Encoded extends DurableValue>(
       id: string,
       schema: Schema.Codec<Value, Encoded, never, never>,
       value: Value
-    ): Effect.Effect<Awaited<ReturnType<SdkPromises["cancel"]>>, DurableProtocolError | ResonateSdkError>
+    ): Effect.Effect<
+      Awaited<ReturnType<SdkPromises["cancel"]>>,
+      DurableProtocolError | ResonateSdkError
+    >
   }
-  readonly registerCallback: (...args: PromiseRegisterCallbackParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkPromises["registerCallback"]>>,
-    ResonateSdkError
-  >
-  readonly registerListener: (...args: PromiseRegisterListenerParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkPromises["registerListener"]>>,
-    ResonateSdkError
-  >
+  readonly registerCallback: (
+    ...args: PromiseRegisterCallbackParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkPromises["registerCallback"]>>, ResonateSdkError>
+  readonly registerListener: (
+    ...args: PromiseRegisterListenerParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkPromises["registerListener"]>>, ResonateSdkError>
 }
 
 type ScheduleGetParameters = MethodParameters<SdkSchedules["get"]>
@@ -152,28 +167,33 @@ type ScheduleCreateResult = Awaited<ReturnType<SdkSchedules["create"]>>
 type ScheduleDeleteResult = Awaited<ReturnType<SdkSchedules["delete"]>>
 
 export interface SchedulesService {
-  readonly get: (...args: ScheduleGetParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkSchedules["get"]>>,
-    ResonateSdkError
-  >
-  readonly create: (...args: ScheduleCreateParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkSchedules["create"]>>,
-    ResonateSdkError
-  >
-  readonly delete: (...args: ScheduleDeleteParameters) => Effect.Effect<
-    Awaited<ReturnType<SdkSchedules["delete"]>>,
-    ResonateSdkError
-  >
+  readonly get: (
+    ...args: ScheduleGetParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkSchedules["get"]>>, ResonateSdkError>
+  readonly create: (
+    ...args: ScheduleCreateParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkSchedules["create"]>>, ResonateSdkError>
+  readonly delete: (
+    ...args: ScheduleDeleteParameters
+  ) => Effect.Effect<Awaited<ReturnType<SdkSchedules["delete"]>>, ResonateSdkError>
 }
 
 export interface ResonateClientService {
   readonly register: {
-    <Func extends AnyFunc>(name: string, func: Func, options?: RegisterOptions):
-      Effect.Effect<ResonateFunc<Func>, ResonateSdkError>
-    <Func extends AnyFunc>(func: Func, options?: RegisterOptions):
-      Effect.Effect<ResonateFunc<Func>, ResonateSdkError>
+    <Func extends AnyFunc>(
+      name: string,
+      func: Func,
+      options?: RegisterOptions
+    ): Effect.Effect<ResonateFunc<Func>, ResonateSdkError>
+    <Func extends AnyFunc>(
+      func: Func,
+      options?: RegisterOptions
+    ): Effect.Effect<ResonateFunc<Func>, ResonateSdkError>
   }
-  readonly setDependency: <Value>(name: string, value: Value) => Effect.Effect<void, ResonateSdkError>
+  readonly setDependency: <Value>(
+    name: string,
+    value: Value
+  ) => Effect.Effect<void, ResonateSdkError>
   readonly run: {
     <Definition extends Workflow.Any>(
       id: string,
@@ -184,14 +204,14 @@ export interface ResonateClientService {
       ResonateHandle<Workflow.Workflow.Success<Definition>, TypedResultError<Definition>>,
       InvalidWorkflowInput | ResonateSdkError
     >
-    <Func extends AnyFunc>(id: string, func: Func, ...args: FunctionRunParameters<Func>): Effect.Effect<
-      ResonateHandle<FunctionReturn<Func>>,
-      ResonateSdkError
-    >
-    <Success = unknown>(...args: SdkRunParameters): Effect.Effect<
-      ResonateHandle<Success>,
-      ResonateSdkError
-    >
+    <Func extends AnyFunc>(
+      id: string,
+      func: Func,
+      ...args: FunctionRunParameters<Func>
+    ): Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
+    <Success = unknown>(
+      ...args: SdkRunParameters
+    ): Effect.Effect<ResonateHandle<Success>, ResonateSdkError>
   }
   readonly rpc: {
     <Definition extends Workflow.Any>(
@@ -203,17 +223,20 @@ export interface ResonateClientService {
       ResonateHandle<Workflow.Workflow.Success<Definition>, TypedResultError<Definition>>,
       InvalidWorkflowInput | ResonateSdkError
     >
-    <Func extends AnyFunc>(id: string, func: Func, ...args: FunctionRpcParameters<Func>): Effect.Effect<
-      ResonateHandle<FunctionReturn<Func>>,
-      ResonateSdkError
-    >
-    <Success = unknown>(...args: SdkRpcParameters): Effect.Effect<
-      ResonateHandle<Success>,
-      ResonateSdkError
-    >
+    <Func extends AnyFunc>(
+      id: string,
+      func: Func,
+      ...args: FunctionRpcParameters<Func>
+    ): Effect.Effect<ResonateHandle<FunctionReturn<Func>>, ResonateSdkError>
+    <Success = unknown>(
+      ...args: SdkRpcParameters
+    ): Effect.Effect<ResonateHandle<Success>, ResonateSdkError>
   }
   readonly get: {
-    <Definition extends Workflow.Any>(id: string, workflow: Definition): Effect.Effect<
+    <Definition extends Workflow.Any>(
+      id: string,
+      workflow: Definition
+    ): Effect.Effect<
       ResonateHandle<Workflow.Workflow.Success<Definition>, TypedResultError<Definition>>,
       ResonateSdkError
     >
@@ -234,7 +257,9 @@ export interface ResonateClientService {
   readonly stop: () => Effect.Effect<void, ResonateSdkError>
 }
 
-export interface LayerOptions<Group extends ResonateFunctions.Any | undefined = undefined> extends ClientOptions {
+export interface LayerOptions<
+  Group extends ResonateFunctions.Any | undefined = undefined
+> extends ClientOptions {
   readonly functions?: Group
   readonly drainTimeout: Duration.Input
 }
@@ -263,13 +288,17 @@ export function register<Func extends AnyFunc>(
   funcOrOptions?: Func | RegisterOptions,
   options?: RegisterOptions
 ): AccessorEffect<ResonateFunc<Func>, ResonateSdkError> {
-  return use((client) => typeof nameOrFunc === "string"
-    ? client.register(nameOrFunc, funcOrOptions as Func, options)
-    : client.register(nameOrFunc, funcOrOptions as RegisterOptions))
+  return use((client) =>
+    typeof nameOrFunc === "string"
+      ? client.register(nameOrFunc, funcOrOptions as Func, options)
+      : client.register(nameOrFunc, funcOrOptions as RegisterOptions)
+  )
 }
 
-export const setDependency = <Value>(name: string, value: Value): AccessorEffect<void, ResonateSdkError> =>
-  use((client) => client.setDependency(name, value))
+export const setDependency = <Value>(
+  name: string,
+  value: Value
+): AccessorEffect<void, ResonateSdkError> => use((client) => client.setDependency(name, value))
 
 export function run<Definition extends Workflow.Any>(
   id: string,
@@ -289,10 +318,19 @@ export function run<Success = unknown>(
   ...args: SdkRunParameters
 ): AccessorEffect<ResonateHandle<Success>, ResonateSdkError>
 export function run(
-  ...args: readonly [id: string, func: Workflow.Any | AnyFunc | string, ...rest: ReadonlyArray<unknown>]
+  ...args: readonly [
+    id: string,
+    func: Workflow.Any | AnyFunc | string,
+    ...rest: ReadonlyArray<unknown>
+  ]
 ): AccessorEffect<ResonateHandle<unknown, unknown>, unknown> {
-  return use((client) => (client.run as (...values: ReadonlyArray<unknown>) =>
-    Effect.Effect<ResonateHandle<unknown, unknown>, unknown>)(...args))
+  return use((client) =>
+    (
+      client.run as (
+        ...values: ReadonlyArray<unknown>
+      ) => Effect.Effect<ResonateHandle<unknown, unknown>, unknown>
+    )(...args)
+  )
 }
 
 export function rpc<Definition extends Workflow.Any>(
@@ -313,23 +351,42 @@ export function rpc<Success = unknown>(
   ...args: SdkRpcParameters
 ): AccessorEffect<ResonateHandle<Success>, ResonateSdkError>
 export function rpc(
-  ...args: readonly [id: string, func: Workflow.Any | AnyFunc | string, ...rest: ReadonlyArray<unknown>]
+  ...args: readonly [
+    id: string,
+    func: Workflow.Any | AnyFunc | string,
+    ...rest: ReadonlyArray<unknown>
+  ]
 ): AccessorEffect<ResonateHandle<unknown, unknown>, unknown> {
-  return use((client) => (client.rpc as (...values: ReadonlyArray<unknown>) =>
-    Effect.Effect<ResonateHandle<unknown, unknown>, unknown>)(...args))
+  return use((client) =>
+    (
+      client.rpc as (
+        ...values: ReadonlyArray<unknown>
+      ) => Effect.Effect<ResonateHandle<unknown, unknown>, unknown>
+    )(...args)
+  )
 }
 
-export function get<Definition extends Workflow.Any>(id: string, workflow: Definition): AccessorEffect<
+export function get<Definition extends Workflow.Any>(
+  id: string,
+  workflow: Definition
+): AccessorEffect<
   ResonateHandle<Workflow.Workflow.Success<Definition>, TypedResultError<Definition>>,
   ResonateSdkError
 >
-export function get<Success = unknown>(id: string): AccessorEffect<ResonateHandle<Success>, ResonateSdkError>
+export function get<Success = unknown>(
+  id: string
+): AccessorEffect<ResonateHandle<Success>, ResonateSdkError>
 export function get(
   id: string,
   workflow?: Workflow.Any
 ): AccessorEffect<ResonateHandle<unknown, unknown>, ResonateSdkError> {
-  return use((client) => (client.get as (...values: ReadonlyArray<unknown>) =>
-    Effect.Effect<ResonateHandle<unknown, unknown>, ResonateSdkError>)(id, workflow))
+  return use((client) =>
+    (
+      client.get as (
+        ...values: ReadonlyArray<unknown>
+      ) => Effect.Effect<ResonateHandle<unknown, unknown>, ResonateSdkError>
+    )(id, workflow)
+  )
 }
 
 export function schedule<Func extends AnyFunc>(
@@ -342,10 +399,20 @@ export function schedule(
   ...args: SdkScheduleParameters
 ): AccessorEffect<ResonateSchedule, ResonateSdkError>
 export function schedule(
-  ...args: readonly [name: string, cron: string, func: AnyFunc | string, ...rest: ReadonlyArray<unknown>]
+  ...args: readonly [
+    name: string,
+    cron: string,
+    func: AnyFunc | string,
+    ...rest: ReadonlyArray<unknown>
+  ]
 ): AccessorEffect<ResonateSchedule, ResonateSdkError> {
-  return use((client) => (client.schedule as (...values: ReadonlyArray<unknown>) =>
-    Effect.Effect<ResonateSchedule, ResonateSdkError>)(...args))
+  return use((client) =>
+    (
+      client.schedule as (
+        ...values: ReadonlyArray<unknown>
+      ) => Effect.Effect<ResonateSchedule, ResonateSdkError>
+    )(...args)
+  )
 }
 
 export const options = (input?: OptionsInput): AccessorEffect<Options, ResonateSdkError> =>
@@ -354,12 +421,24 @@ export const options = (input?: OptionsInput): AccessorEffect<Options, ResonateS
 const settle = (
   operation: "resolve" | "reject" | "cancel",
   args: ReadonlyArray<unknown>
-): AccessorEffect<PromiseResolveResult | PromiseRejectResult | PromiseCancelResult, DurableProtocolError | ResonateSdkError> =>
-  use((client) => (client.promises[operation] as (...values: ReadonlyArray<unknown>) =>
-    Effect.Effect<PromiseResolveResult | PromiseRejectResult | PromiseCancelResult,
-      DurableProtocolError | ResonateSdkError>)(...args))
+): AccessorEffect<
+  PromiseResolveResult | PromiseRejectResult | PromiseCancelResult,
+  DurableProtocolError | ResonateSdkError
+> =>
+  use((client) =>
+    (
+      client.promises[operation] as (
+        ...values: ReadonlyArray<unknown>
+      ) => Effect.Effect<
+        PromiseResolveResult | PromiseRejectResult | PromiseCancelResult,
+        DurableProtocolError | ResonateSdkError
+      >
+    )(...args)
+  )
 
-function resolve(...args: PromiseResolveParameters): AccessorEffect<PromiseResolveResult, ResonateSdkError>
+function resolve(
+  ...args: PromiseResolveParameters
+): AccessorEffect<PromiseResolveResult, ResonateSdkError>
 function resolve<Value, Encoded extends DurableValue>(
   id: string,
   schema: Schema.Codec<Value, Encoded, never, never>,
@@ -369,7 +448,9 @@ function resolve(...args: ReadonlyArray<unknown>) {
   return settle("resolve", args)
 }
 
-function reject(...args: PromiseRejectParameters): AccessorEffect<PromiseRejectResult, ResonateSdkError>
+function reject(
+  ...args: PromiseRejectParameters
+): AccessorEffect<PromiseRejectResult, ResonateSdkError>
 function reject<Value, Encoded extends DurableValue>(
   id: string,
   schema: Schema.Codec<Value, Encoded, never, never>,
@@ -379,7 +460,9 @@ function reject(...args: ReadonlyArray<unknown>) {
   return settle("reject", args)
 }
 
-function cancel(...args: PromiseCancelParameters): AccessorEffect<PromiseCancelResult, ResonateSdkError>
+function cancel(
+  ...args: PromiseCancelParameters
+): AccessorEffect<PromiseCancelResult, ResonateSdkError>
 function cancel<Value, Encoded extends DurableValue>(
   id: string,
   schema: Schema.Codec<Value, Encoded, never, never>,
@@ -392,44 +475,49 @@ function cancel(...args: ReadonlyArray<unknown>) {
 export const promises = {
   get: (...args: PromiseGetParameters): AccessorEffect<PromiseGetResult, ResonateSdkError> =>
     use((client) => client.promises.get(...args)),
-  create: (...args: PromiseCreateParameters): AccessorEffect<PromiseCreateResult, ResonateSdkError> =>
+  create: (
+    ...args: PromiseCreateParameters
+  ): AccessorEffect<PromiseCreateResult, ResonateSdkError> =>
     use((client) => client.promises.create(...args)),
-  createWithTask: (...args: PromiseCreateWithTaskParameters): AccessorEffect<
-    PromiseCreateWithTaskResult,
-    ResonateSdkError
-  > => use((client) => client.promises.createWithTask(...args)),
+  createWithTask: (
+    ...args: PromiseCreateWithTaskParameters
+  ): AccessorEffect<PromiseCreateWithTaskResult, ResonateSdkError> =>
+    use((client) => client.promises.createWithTask(...args)),
   resolve,
   reject,
   cancel,
-  registerCallback: (...args: PromiseRegisterCallbackParameters): AccessorEffect<
-    PromiseRegisterCallbackResult,
-    ResonateSdkError
-  > => use((client) => client.promises.registerCallback(...args)),
-  registerListener: (...args: PromiseRegisterListenerParameters): AccessorEffect<
-    PromiseRegisterListenerResult,
-    ResonateSdkError
-  > => use((client) => client.promises.registerListener(...args))
+  registerCallback: (
+    ...args: PromiseRegisterCallbackParameters
+  ): AccessorEffect<PromiseRegisterCallbackResult, ResonateSdkError> =>
+    use((client) => client.promises.registerCallback(...args)),
+  registerListener: (
+    ...args: PromiseRegisterListenerParameters
+  ): AccessorEffect<PromiseRegisterListenerResult, ResonateSdkError> =>
+    use((client) => client.promises.registerListener(...args))
 } as const
 
 export const schedules = {
   get: (...args: ScheduleGetParameters): AccessorEffect<ScheduleGetResult, ResonateSdkError> =>
     use((client) => client.schedules.get(...args)),
-  create: (...args: ScheduleCreateParameters): AccessorEffect<ScheduleCreateResult, ResonateSdkError> =>
+  create: (
+    ...args: ScheduleCreateParameters
+  ): AccessorEffect<ScheduleCreateResult, ResonateSdkError> =>
     use((client) => client.schedules.create(...args)),
-  delete: (...args: ScheduleDeleteParameters): AccessorEffect<ScheduleDeleteResult, ResonateSdkError> =>
+  delete: (
+    ...args: ScheduleDeleteParameters
+  ): AccessorEffect<ScheduleDeleteResult, ResonateSdkError> =>
     use((client) => client.schedules.delete(...args))
 } as const
 
 export const stop = (): AccessorEffect<void, ResonateSdkError> => use((client) => client.stop())
 
 export type AcquisitionError =
-  | InvalidDefinition
-  | DuplicateDefinition
-  | InvalidClientConfiguration
-  | ResonateSdkError
+  InvalidDefinition | DuplicateDefinition | InvalidClientConfiguration | ResonateSdkError
 
 /** Acquires one ready Resonate runtime without declarative preregistration. */
-export function layer(options: LayerOptions): Layer.Layer<ResonateClient, AcquisitionError, ResonateNetwork>
+export function layer(
+  options: LayerOptions
+): Layer.Layer<ResonateClient, AcquisitionError, ResonateNetwork>
 /** Acquires one ready Resonate runtime and atomically preregisters a closed function group. */
 export function layer<Group extends ResonateFunctions.Any>(
   options: LayerOptions<Group> & { readonly functions: Group }
@@ -440,14 +528,16 @@ export function layer<Group extends ResonateFunctions.Any>(
 >
 export function layer(
   options: LayerOptions | LayerOptions<ResonateFunctions.Any>
-): Layer.Layer<ResonateClient, AcquisitionError, ResonateNetwork | ResonateFunctions.Handlers<ResonateFunctions.Any>> {
+): Layer.Layer<
+  ResonateClient,
+  AcquisitionError,
+  ResonateNetwork | ResonateFunctions.Handlers<ResonateFunctions.Any>
+> {
   return Layer.effect(
     ResonateClient,
     ClientLive.make(
       options.functions as ResonateFunctions.Any,
       options as LayerOptions<ResonateFunctions.Any>
     )
-  ).pipe(
-    Layer.provide(AdapterSupervisor.layer)
-  )
+  ).pipe(Layer.provide(AdapterSupervisor.layer))
 }

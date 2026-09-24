@@ -45,7 +45,9 @@ export const make = (network: Network): NetworkGate => {
     if (stopping === undefined) {
       state = "Closed"
       buffered.length = 0
-      stopping = (initialization ?? Promise.resolve()).catch(() => undefined).then(() => network.stop())
+      stopping = (initialization ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => network.stop())
     }
     return stopping
   }
@@ -61,9 +63,9 @@ export const make = (network: Network): NetworkGate => {
     },
     init,
     stop,
-    initialized: () => initialization ?? Promise.reject(
-      new Error("Resonate did not initialize its network during construction")
-    ),
+    initialized: () =>
+      initialization ??
+      Promise.reject(new Error("Resonate did not initialize its network during construction")),
     open: () => {
       if (state !== "Waiting") {
         return

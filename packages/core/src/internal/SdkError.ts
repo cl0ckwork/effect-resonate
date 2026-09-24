@@ -10,9 +10,7 @@ export interface Options {
 /** Preserves an SDK cause and copies only known diagnostic fields when present. */
 export const fromCause = (options: Options): ResonateSdkError => {
   const metadata = Predicate.isObject(options.cause) ? options.cause : undefined
-  const serverError = Predicate.isObject(metadata?.serverError)
-    ? metadata.serverError
-    : undefined
+  const serverError = Predicate.isObject(metadata?.serverError) ? metadata.serverError : undefined
 
   return new ResonateSdkError({
     operation: options.operation,

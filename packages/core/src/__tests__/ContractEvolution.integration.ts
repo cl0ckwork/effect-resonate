@@ -63,14 +63,18 @@ describe("contract evolution runtime", () => {
       success: Schema.Struct({ receipt: Schema.String, captured: Schema.Boolean }),
       failure: Schema.Never
     })
-    const runtime = ManagedRuntime.make(Layer.mergeAll(
-      AdapterSupervisor.layer,
-      ChargeCardV1.toLayer(({ amount }) => Effect.succeed({ receipt: `legacy-${amount}` })),
-      ChargeCardV2.toLayer(({ amount, currency }) => Effect.succeed({
-        receipt: `${currency}-${amount}`,
-        captured: true
-      }))
-    ))
+    const runtime = ManagedRuntime.make(
+      Layer.mergeAll(
+        AdapterSupervisor.layer,
+        ChargeCardV1.toLayer(({ amount }) => Effect.succeed({ receipt: `legacy-${amount}` })),
+        ChargeCardV2.toLayer(({ amount, currency }) =>
+          Effect.succeed({
+            receipt: `${currency}-${amount}`,
+            captured: true
+          })
+        )
+      )
+    )
     await runtime.context()
 
     const legacy = await StepAdapter.make(ChargeCardV1, runtime.runPromise)(
@@ -82,14 +86,17 @@ describe("contract evolution runtime", () => {
       { amount: 20, currency: "USD" }
     )
 
-    assert.deepStrictEqual(legacy, DurableOutcome.success(
-      DurableOutcome.identityOf(ChargeCardV1),
-      { receipt: "legacy-10" }
-    ))
-    assert.deepStrictEqual(current, DurableOutcome.success(
-      DurableOutcome.identityOf(ChargeCardV2),
-      { receipt: "USD-20", captured: true }
-    ))
+    assert.deepStrictEqual(
+      legacy,
+      DurableOutcome.success(DurableOutcome.identityOf(ChargeCardV1), { receipt: "legacy-10" })
+    )
+    assert.deepStrictEqual(
+      current,
+      DurableOutcome.success(DurableOutcome.identityOf(ChargeCardV2), {
+        receipt: "USD-20",
+        captured: true
+      })
+    )
     await runtime.dispose()
   })
 
@@ -108,33 +115,39 @@ describe("contract evolution runtime", () => {
       success: Schema.String,
       failure: Schema.Never
     })
-    const runtime = ManagedRuntime.make(Layer.mergeAll(
-      AdapterSupervisor.layer,
-      ReserveV1.toLayer((sku) => Effect.succeed(`v1:${sku}`)),
-      ReserveV2.toLayer(({ sku, quantity }) => Effect.sync(() => {
-        evolvedExecutions += 1
-        return `v2:${sku}:${quantity}`
-      }))
-    ))
+    const runtime = ManagedRuntime.make(
+      Layer.mergeAll(
+        AdapterSupervisor.layer,
+        ReserveV1.toLayer((sku) => Effect.succeed(`v1:${sku}`)),
+        ReserveV2.toLayer(({ sku, quantity }) =>
+          Effect.sync(() => {
+            evolvedExecutions += 1
+            return `v2:${sku}:${quantity}`
+          })
+        )
+      )
+    )
     await runtime.context()
 
     const legacy = await StepAdapter.make(ReserveV1, runtime.runPromise)(
       stepInfo(ReserveV1, "reserve-1"),
       "sku-1"
     )
-    assert.deepStrictEqual(legacy, DurableOutcome.success(
-      DurableOutcome.identityOf(ReserveV1),
-      "v1:sku-1"
-    ))
-    assert.deepInclude(await rejectionOf(StepAdapter.make(ReserveV2, runtime.runPromise)(
-      stepInfo(ReserveV2, "reserve-2"),
-      "sku-1"
-    )), {
-      _tag: "@effect-resonate/core/ExecutionRejected",
-      definitionName: ReserveV2.name,
-      definitionVersion: ReserveV2.version,
-      reason: "ContractViolation"
-    })
+    assert.deepStrictEqual(
+      legacy,
+      DurableOutcome.success(DurableOutcome.identityOf(ReserveV1), "v1:sku-1")
+    )
+    assert.deepInclude(
+      await rejectionOf(
+        StepAdapter.make(ReserveV2, runtime.runPromise)(stepInfo(ReserveV2, "reserve-2"), "sku-1")
+      ),
+      {
+        _tag: "@effect-resonate/core/ExecutionRejected",
+        definitionName: ReserveV2.name,
+        definitionVersion: ReserveV2.version,
+        reason: "ContractViolation"
+      }
+    )
     assert.strictEqual(evolvedExecutions, 0)
     await runtime.dispose()
   })
@@ -166,26 +179,30 @@ describe("contract evolution runtime", () => {
       success: CheckoutV1.success,
       failure: CheckoutV1.failure
     })
-    const runtime = ManagedRuntime.make(Layer.merge(
-      CheckoutV1.toLayer(async (context, input) => context.run(ChargeCardV1, input)),
-      CheckoutV2.toLayer(async (context, input) => context.run(ChargeCardV2, input))
-    ))
+    const runtime = ManagedRuntime.make(
+      Layer.merge(
+        CheckoutV1.toLayer(async (context, input) => context.run(ChargeCardV1, input)),
+        CheckoutV2.toLayer(async (context, input) => context.run(ChargeCardV2, input))
+      )
+    )
 
     const calls: Array<{ readonly name: string; readonly version: number }> = []
     const sdkContext = <Definition extends Step.Any>(
       workflow: Workflow.Any,
       step: Definition,
       receipt: string
-    ): ResonateContext => ({
-      ...workflowInfo(workflow),
-      options: (options: unknown) => options,
-      run: (name: string, _input: unknown, options: { readonly version: number }) => {
-        calls.push({ name, version: options.version })
-        return durable(`${workflow.name}-${workflow.version}:1`, Promise.resolve(
-          DurableOutcome.success(DurableOutcome.identityOf(step), { receipt })
-        ))
-      }
-    }) as unknown as ResonateContext
+    ): ResonateContext =>
+      ({
+        ...workflowInfo(workflow),
+        options: (options: unknown) => options,
+        run: (name: string, _input: unknown, options: { readonly version: number }) => {
+          calls.push({ name, version: options.version })
+          return durable(
+            `${workflow.name}-${workflow.version}:1`,
+            Promise.resolve(DurableOutcome.success(DurableOutcome.identityOf(step), { receipt }))
+          )
+        }
+      }) as unknown as ResonateContext
     const workflowHandlerV1 = await runtime.runPromise(CheckoutV1.handler)
     const workflowHandlerV2 = await runtime.runPromise(CheckoutV2.handler)
 
@@ -202,14 +219,14 @@ describe("contract evolution runtime", () => {
       { name: ChargeCardV1.name, version: 1 },
       { name: ChargeCardV2.name, version: 2 }
     ])
-    assert.deepStrictEqual(legacy, DurableOutcome.success(
-      DurableOutcome.identityOf(CheckoutV1),
-      { receipt: "receipt-v1" }
-    ))
-    assert.deepStrictEqual(current, DurableOutcome.success(
-      DurableOutcome.identityOf(CheckoutV2),
-      { receipt: "receipt-v2" }
-    ))
+    assert.deepStrictEqual(
+      legacy,
+      DurableOutcome.success(DurableOutcome.identityOf(CheckoutV1), { receipt: "receipt-v1" })
+    )
+    assert.deepStrictEqual(
+      current,
+      DurableOutcome.success(DurableOutcome.identityOf(CheckoutV2), { receipt: "receipt-v2" })
+    )
     await runtime.dispose()
   })
 
@@ -278,21 +295,28 @@ describe("contract evolution runtime", () => {
         const isLegacyCheckpoint = calls.length === 0
         calls.push({ name, input, version: options.version })
         return isLegacyCheckpoint
-          ? durable("checkout-2:1", Promise.resolve(DurableOutcome.success(
-            DurableOutcome.identityOf(CalculateTotalV1),
-            { totalCents: 1_250 }
-          )))
-          : durable("checkout-2:2", Promise.resolve(DurableOutcome.success(
-            DurableOutcome.identityOf(ChargeV2),
-            { paymentId: "payment-2" }
-          )))
+          ? durable(
+              "checkout-2:1",
+              Promise.resolve(
+                DurableOutcome.success(DurableOutcome.identityOf(CalculateTotalV1), {
+                  totalCents: 1_250
+                })
+              )
+            )
+          : durable(
+              "checkout-2:2",
+              Promise.resolve(
+                DurableOutcome.success(DurableOutcome.identityOf(ChargeV2), {
+                  paymentId: "payment-2"
+                })
+              )
+            )
       }
     } as unknown as ResonateContext
 
-    const result = await WorkflowAdapter.make(CheckoutV2, handler)(
-      replayContext,
-      { orderId: "order-42" }
-    )
+    const result = await WorkflowAdapter.make(CheckoutV2, handler)(replayContext, {
+      orderId: "order-42"
+    })
 
     assert.deepStrictEqual(calls, [
       {
@@ -309,10 +333,10 @@ describe("contract evolution runtime", () => {
         version: 2
       }
     ])
-    assert.deepStrictEqual(result, DurableOutcome.success(
-      DurableOutcome.identityOf(CheckoutV2),
-      { paymentId: "payment-2" }
-    ))
+    assert.deepStrictEqual(
+      result,
+      DurableOutcome.success(DurableOutcome.identityOf(CheckoutV2), { paymentId: "payment-2" })
+    )
     await runtime.dispose()
   })
 })

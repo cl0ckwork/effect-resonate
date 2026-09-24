@@ -11,19 +11,18 @@ const effectPatternMatching = [
   },
   {
     selector: "BinaryExpression[operator='==='] > MemberExpression[property.name='_tag']",
-    message: "Use Match.valueTags, Match.tagsExhaustive, or a native Effect matcher instead of comparing _tag."
+    message:
+      "Use Match.valueTags, Match.tagsExhaustive, or a native Effect matcher instead of comparing _tag."
   },
   {
     selector: "BinaryExpression[operator='!=='] > MemberExpression[property.name='_tag']",
-    message: "Use Match.valueTags, Match.tagsExhaustive, or a native Effect matcher instead of comparing _tag."
+    message:
+      "Use Match.valueTags, Match.tagsExhaustive, or a native Effect matcher instead of comparing _tag."
   }
 ]
 
 export default defineConfig([
-  globalIgnores([
-    "**/dist/**",
-    "**/node_modules/**"
-  ]),
+  globalIgnores(["**/dist/**", "**/node_modules/**"]),
   {
     files: ["**/*.{js,mjs,cjs}"],
     extends: [eslint.configs.recommended],
@@ -37,10 +36,7 @@ export default defineConfig([
   },
   {
     files: ["**/*.ts"],
-    extends: [
-      eslint.configs.recommended,
-      tseslint.configs.recommended
-    ],
+    extends: [eslint.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
       globals: globals.node,
       parser: tseslint.parser,

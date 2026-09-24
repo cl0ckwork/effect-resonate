@@ -117,31 +117,36 @@ export interface MakeLayerOptions<Error, Requirements> {
  */
 export const layer = <Error, Requirements>(
   options: MakeLayerOptions<Error, Requirements>
-): Layer.Layer<NetworkHarness, HarnessSetupError, Exclude<Requirements, Scope.Scope>> => Layer.effect(
-  NetworkHarness,
-  Effect.gen(function*() {
-    const acquired = yield* options.acquire.pipe(
-      Effect.mapError(() => new HarnessSetupError({
-        harness: options.name,
-        issue: "AcquisitionFailed"
-      })),
-      Effect.timeoutOption(options.setupTimeout)
-    )
-    const resource = yield* Option.match(acquired, {
-      onNone: () => new HarnessSetupError({ harness: options.name, issue: "TimedOut" }),
-      onSome: Effect.succeed
-    })
-    const counter = yield* Ref.make(0)
-
-    return NetworkHarness.of({
-      ...resource,
-      name: options.name,
-      nextExecutionId: ({ scenario }) => Ref.updateAndGet(counter, (value) => value + 1).pipe(
-        Effect.map((value) => `${scenario}-${value}`)
+): Layer.Layer<NetworkHarness, HarnessSetupError, Exclude<Requirements, Scope.Scope>> =>
+  Layer.effect(
+    NetworkHarness,
+    Effect.gen(function* () {
+      const acquired = yield* options.acquire.pipe(
+        Effect.mapError(
+          () =>
+            new HarnessSetupError({
+              harness: options.name,
+              issue: "AcquisitionFailed"
+            })
+        ),
+        Effect.timeoutOption(options.setupTimeout)
       )
+      const resource = yield* Option.match(acquired, {
+        onNone: () => new HarnessSetupError({ harness: options.name, issue: "TimedOut" }),
+        onSome: Effect.succeed
+      })
+      const counter = yield* Ref.make(0)
+
+      return NetworkHarness.of({
+        ...resource,
+        name: options.name,
+        nextExecutionId: ({ scenario }) =>
+          Ref.updateAndGet(counter, (value) => value + 1).pipe(
+            Effect.map((value) => `${scenario}-${value}`)
+          )
+      })
     })
-  })
-)
+  )
 
 export interface FailureOptions {
   readonly scenario: string
@@ -158,20 +163,25 @@ const fallbackObservation = (options: {
   executions: options.executionIds.map((id) => ({ id, state: "unknown" }))
 })
 
-export const fail = (options: FailureOptions): Effect.Effect<never, ConformanceFailure, NetworkHarness> =>
+export const fail = (
+  options: FailureOptions
+): Effect.Effect<never, ConformanceFailure, NetworkHarness> =>
   NetworkHarness.use((harness) => {
     const executionIds = options.executionIds ?? []
     return harness.observe({ executionIds }).pipe(
       Effect.catchCause(() => Effect.succeed(fallbackObservation({ executionIds }))),
       Effect.timeoutOption(harness.timing.scenarioTimeout),
       Effect.map(Option.getOrElse(() => fallbackObservation({ executionIds }))),
-      Effect.flatMap((observation) => new ConformanceFailure({
-      harness: harness.name,
-      scenario: options.scenario,
-      issue: options.issue,
-      assertion: options.assertion,
-      observation
-      }))
+      Effect.flatMap(
+        (observation) =>
+          new ConformanceFailure({
+            harness: harness.name,
+            scenario: options.scenario,
+            issue: options.issue,
+            assertion: options.assertion,
+            observation
+          })
+      )
     )
   })
 
@@ -179,15 +189,17 @@ export interface AssertOptions extends Omit<FailureOptions, "issue"> {
   readonly condition: boolean
 }
 
-export const assertConformance = (options: AssertOptions): Effect.Effect<void, ConformanceFailure, NetworkHarness> =>
+export const assertConformance = (
+  options: AssertOptions
+): Effect.Effect<void, ConformanceFailure, NetworkHarness> =>
   options.condition
     ? Effect.void
     : fail({
-      scenario: options.scenario,
-      issue: "AssertionFailed",
-      assertion: options.assertion,
-      ...(options.executionIds === undefined ? {} : { executionIds: options.executionIds })
-    })
+        scenario: options.scenario,
+        issue: "AssertionFailed",
+        assertion: options.assertion,
+        ...(options.executionIds === undefined ? {} : { executionIds: options.executionIds })
+      })
 
 export interface WaitForOptions<Success, Error, Requirements> {
   readonly scenario: string
@@ -199,26 +211,31 @@ export interface WaitForOptions<Success, Error, Requirements> {
 /** Polls an observable boundary until it yields a value, with the harness-wide finite deadline. */
 export const waitFor = <Success, Error, Requirements>(
   options: WaitForOptions<Success, Error, Requirements>
-): Effect.Effect<Success, ConformanceFailure, Requirements | NetworkHarness> => Effect.gen(function*() {
-  const harness = yield* NetworkHarness
-  const onFailure = (issue: ConformanceIssue) => fail({
-    scenario: options.scenario,
-    issue,
-    assertion: options.assertion,
-    ...(options.executionIds === undefined ? {} : { executionIds: options.executionIds })
-  })
-  const poll = (): Effect.Effect<Success, ConformanceFailure, Requirements | NetworkHarness> =>
-    options.poll.pipe(
-      Effect.catch(() => onFailure("ObservationFailed")),
-      Effect.flatMap(Option.match({
-        onNone: () => Effect.sleep(harness.timing.pollInterval).pipe(Effect.andThen(Effect.suspend(poll))),
-        onSome: Effect.succeed
-      }))
-    )
-  const bounded = yield* poll().pipe(Effect.timeoutOption(harness.timing.scenarioTimeout))
+): Effect.Effect<Success, ConformanceFailure, Requirements | NetworkHarness> =>
+  Effect.gen(function* () {
+    const harness = yield* NetworkHarness
+    const onFailure = (issue: ConformanceIssue) =>
+      fail({
+        scenario: options.scenario,
+        issue,
+        assertion: options.assertion,
+        ...(options.executionIds === undefined ? {} : { executionIds: options.executionIds })
+      })
+    const poll = (): Effect.Effect<Success, ConformanceFailure, Requirements | NetworkHarness> =>
+      options.poll.pipe(
+        Effect.catch(() => onFailure("ObservationFailed")),
+        Effect.flatMap(
+          Option.match({
+            onNone: () =>
+              Effect.sleep(harness.timing.pollInterval).pipe(Effect.andThen(Effect.suspend(poll))),
+            onSome: Effect.succeed
+          })
+        )
+      )
+    const bounded = yield* poll().pipe(Effect.timeoutOption(harness.timing.scenarioTimeout))
 
-  return yield* Option.match(bounded, {
-    onNone: () => onFailure("TimedOut"),
-    onSome: Effect.succeed
+    return yield* Option.match(bounded, {
+      onNone: () => onFailure("TimedOut"),
+      onSome: Effect.succeed
+    })
   })
-})

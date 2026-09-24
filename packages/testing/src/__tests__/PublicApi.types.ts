@@ -21,11 +21,12 @@ const resource = {
     timeout: { invocationTimeoutMillis: 100 },
     invalidNonDurableAwait: true
   },
-  observe: ({ executionIds }: ObservationRequest) => Effect.succeed({
-    phase: "ready" as const,
-    activeWorkers: 0,
-    executions: executionIds.map((id) => ({ id, state: "unknown" as const }))
-  })
+  observe: ({ executionIds }: ObservationRequest) =>
+    Effect.succeed({
+      phase: "ready" as const,
+      activeWorkers: 0,
+      executions: executionIds.map((id) => ({ id, state: "unknown" as const }))
+    })
 } satisfies NetworkHarnessResource
 
 const HarnessLive = makeNetworkHarnessLayer({
