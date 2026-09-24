@@ -32,9 +32,11 @@ jobs:
         env:
           FORMAT_BASE: ${{ github.event.before }}
         run: pnpm format:check
-      - name: Validate the generated version PR contents
+      - name: Validate release contents
         run: |
-          pnpm version-packages
+          if [ -n "$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)" ]; then
+            pnpm version-packages
+          fi
           pnpm install --frozen-lockfile
           pnpm check
           pnpm test
