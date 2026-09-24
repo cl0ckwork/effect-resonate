@@ -74,7 +74,8 @@ public packages from a public repository. See npm's
    merging.
 4. The release workflow validates the packages and stages versions absent
    from npm through the npm CLI and OIDC. Review each staged tarball on
-   npmjs.com or with `npm stage list`, then approve it with 2FA. A staged
+   npmjs.com or with `npm stage list`, then approve it with 2FA. Approve a new
+   core version before the Postgres provider version that requires it. A staged
    version is not installable until approval. Verify both package pages,
    versions, and provenance after approval. A rerun safely skips live versions
    and tolerates versions already staged.
