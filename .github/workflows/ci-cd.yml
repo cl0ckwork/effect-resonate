@@ -41,13 +41,14 @@ jobs:
         run: pnpm check:packages
 
   test:
-    name: Tests (Node ${{ matrix.node }})
+    name: ${{ matrix.suite }} tests (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24]
+        suite: [unit, integration]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: pnpm/setup@5d160c5bc68a09337ad0d5654e237e03253b5879 # v1
@@ -59,5 +60,5 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build packages
         run: pnpm build
-      - name: Test
-        run: pnpm test
+      - name: Run ${{ matrix.suite }} tests
+        run: pnpm test:${{ matrix.suite }}
