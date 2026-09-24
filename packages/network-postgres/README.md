@@ -1,26 +1,34 @@
 # @effect-resonate/network-postgres
 
-Effect Layer for the official Resonate SDK `PostgresNetwork`. Install it with
-core, Effect, the Resonate SDK, and the PostgreSQL driver:
+This package supplies the official Resonate SDK `PostgresNetwork` as an Effect
+Layer. Install it with core, Effect, the Resonate SDK, and the PostgreSQL driver:
 
 ```sh
 pnpm add @effect-resonate/core @effect-resonate/network-postgres effect @resonatehq/sdk pg
 ```
 
-Provide the network Layer to `ResonateClient.layer`:
+Set `DATABASE_URL` to a PostgreSQL connection string, then provide the network
+Layer to `ResonateClient.layer`. Effect Config reports a missing variable when
+the Layer is acquired:
 
 ```ts
 import * as ResonateClient from "@effect-resonate/core/ResonateClient"
 import * as PostgresNetwork from "@effect-resonate/network-postgres"
-import { Layer } from "effect"
+import { Config, Effect, Layer, Redacted } from "effect"
+
+const NetworkLive = Layer.unwrap(
+  Config.Redacted("DATABASE_URL").pipe(
+    Effect.map((url) =>
+      PostgresNetwork.layer({
+        connectionString: Redacted.value(url),
+        group: "workers"
+      })
+    )
+  )
+)
 
 const ClientLive = ResonateClient.layer({ drainTimeout: "30 seconds" }).pipe(
-  Layer.provide(
-    PostgresNetwork.layer({
-      connectionString: process.env.DATABASE_URL ?? "",
-      group: "workers"
-    })
-  )
+  Layer.provide(NetworkLive)
 )
 ```
 
@@ -32,9 +40,9 @@ not modify SDK errors, diagnostics, logging, or retry behavior.
 
 ## Database setup
 
-The operator must provision the Resonate PostgreSQL schema and the `pg_cron`
-extension required by the official SDK. This package does not run migrations or
-create database objects. Follow the setup instructions for the version of the
+Provision the Resonate PostgreSQL schema and the `pg_cron` extension before
+starting a client. This package does not run migrations or create database
+objects. Follow the setup instructions for the version of the
 [Resonate TypeScript SDK](https://docs.resonatehq.io/develop/typescript) in use.
 
 Database-backed provider conformance tests and their pinned SQL fixtures live

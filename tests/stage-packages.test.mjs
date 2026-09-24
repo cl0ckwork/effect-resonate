@@ -122,8 +122,8 @@ test("staging skips the unreleased version sentinel", (context) => {
   )
 })
 
-test("staging records pending approval and tolerates an existing stage", (context) => {
-  const result = fixture(context)("stage-conflict")
+test("staging records both versions awaiting approval", (context) => {
+  const result = fixture(context)("new-version")
   assert.equal(result.status, 0)
   const stageCalls = result.invoked.filter(([command]) => command === "stage")
   assert.equal(stageCalls.length, 2)
@@ -133,6 +133,16 @@ test("staging records pending approval and tolerates an existing stage", (contex
   }
   assert.match(result.summary, /@effect-resonate\/core@0\.1\.0/)
   assert.match(result.summary, /@effect-resonate\/network-postgres@0\.1\.0/)
+})
+
+test("staging stops on a conflict whose exact staged version cannot be verified", (context) => {
+  const result = fixture(context)("stage-conflict")
+  assert.notEqual(result.status, 0)
+  const stageCalls = result.invoked.filter(([command]) => command === "stage")
+  assert.equal(stageCalls.length, 2)
+  assert.match(result.stderr, /Unable to stage @effect-resonate\/network-postgres@0\.1\.0/)
+  assert.match(result.stderr, /Check npm's staged versions/)
+  assert.equal(result.summary, "")
 })
 
 test("unexpected npm staging failures stop the release", (context) => {

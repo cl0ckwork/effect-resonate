@@ -77,8 +77,11 @@ public packages from a public repository. See npm's
    npmjs.com or with `npm stage list`, then approve it with 2FA. Approve a new
    core version before the Postgres provider version that requires it. A staged
    version is not installable until approval. Verify both package pages,
-   versions, and provenance after approval. A rerun safely skips live versions
-   and tolerates versions already staged.
+   versions, and provenance after approval. A rerun skips live versions. If npm
+   rejects a stage attempt, inspect the pending versions on npmjs.com or with
+   an authenticated `npm stage list`. Approve an exact matching stage with 2FA,
+   then rerun the workflow; investigate any other conflict before retrying.
+   The OIDC staging job cannot inspect pending versions, so it stops on errors.
 
 `pnpm check` builds and validates the packages with `publint`,
 `@arethetypeswrong/cli`, and a fresh packed consumer. `pnpm test` runs the

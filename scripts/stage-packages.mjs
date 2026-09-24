@@ -70,14 +70,10 @@ for (const { directory, name, version } of packages) {
     process.stdout.write(output)
   } catch (error) {
     const detail = `${error.stdout ?? ""}\n${error.stderr ?? ""}`
-    if (
-      !/already (been )?staged|staged version|E409|EPUBLISHCONFLICT|previously published/i.test(
-        detail
-      )
-    ) {
-      throw new Error(`Unable to stage ${name}@${version}: ${detail}`, { cause: error })
-    }
-    console.log(`${name}@${version} is already staged.`)
+    throw new Error(
+      `Unable to stage ${name}@${version}: ${detail}\nCheck npm's staged versions before rerunning or approving this release.`,
+      { cause: error }
+    )
   }
   staged.push(`${name}@${version}`)
 }

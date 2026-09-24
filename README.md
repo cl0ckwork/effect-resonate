@@ -1,9 +1,9 @@
 # effect-resonate
 
-Use [Effect](https://effect.website/) services and typed errors with
-[Resonate](https://resonatehq.io/) durable execution. Resonate owns workflow
-orchestration, replay, timers, and retries; Effect runs application work inside
-registered steps and manages the client and network as scoped Layers.
+Use [Effect](https://effect.website/) services, typed errors, and Layers with
+[Resonate](https://resonatehq.io/) durable execution. Resonate handles workflow
+orchestration, replay, timers, and retries. Effect runs application work inside
+registered steps and manages client and network resources.
 
 ## Install
 
@@ -15,7 +15,7 @@ pnpm add @effect-resonate/core @effect-resonate/network-postgres effect @resonat
 ```
 
 Provision the Resonate PostgreSQL schema and `pg_cron` extension before starting
-the client. The provider does not run migrations; see the
+the client. See the
 [Postgres setup guide](./packages/network-postgres/README.md#database-setup).
 
 If you supply another network provider, install `@effect-resonate/core`,
@@ -63,6 +63,7 @@ const ClientLive = ResonateClient.layer({
 }).pipe(Layer.provide(Layer.mergeAll(NetworkLive, UppercaseLive, EchoLive)))
 
 const program = Effect.gen(function* () {
+  // Reuse this ID for retries of this request; choose a new ID for new input.
   const handle = yield* ResonateClient.run("echo-1", Echo, "hello")
   return yield* handle.result()
 }).pipe(Effect.provide(ClientLive))
@@ -71,16 +72,14 @@ console.log(await Effect.runPromise(program)) // HELLO
 ```
 
 Keep a worker running to process durable executions after callers disconnect.
-An execution ID identifies one logical invocation: reuse it to reconcile an
-uncertain result, and use a new ID for new input. Step effects that write to an
-external system should use an idempotency key because a retry can repeat the
-write. Workflow code should use the Resonate context for durable operations;
-put arbitrary Effect and I/O work in steps.
+Step effects that write to an external system should use an idempotency key
+because a retry can repeat the write. Workflow code should use the Resonate
+context for durable operations; put arbitrary Effect and I/O work in steps.
 
-For contract evolution, recovery with `ResonateClient.get`, raw SDK-compatible
-calls, and lifecycle details, read the [core guide](./packages/core/README.md).
-The [Postgres provider guide](./packages/network-postgres/README.md) covers
-network configuration and database requirements. The
+For contract evolution, recovery with `ResonateClient.get`, and the client API,
+see the [core guide](./packages/core/README.md). The
+[Postgres provider guide](./packages/network-postgres/README.md) covers network
+configuration and database requirements. The
 [Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
 remains the reference for orchestration and retry semantics.
 
@@ -129,7 +128,7 @@ pnpm format:check origin/main
 its base branch to `pnpm format:check` instead of `origin/main`. Use
 `pnpm format <base-ref>` to format changed files.
 
-The [packaging guide](./docs/PACKAGING.md) describes package boundaries and
-build output. [Specifications](./docs/specs/), [implementation plans](./docs/plans/),
-and [architecture notes](./docs/BRAINSTORM.md) record design decisions. See the
-[release guide](./docs/RELEASING.md) for Changesets, CI, and npm staging.
+The [architecture guide](./docs/ARCHITECTURE.md) explains the durable execution
+model. The [packaging guide](./docs/PACKAGING.md) describes package boundaries
+and build output. See the [release guide](./docs/RELEASING.md) for Changesets,
+CI, and npm staging.

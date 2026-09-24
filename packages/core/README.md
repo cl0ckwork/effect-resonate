@@ -1,22 +1,22 @@
 # @effect-resonate/core
 
-Effect-native primitives for integrating [Effect](https://effect.website/) with [Resonate](https://resonatehq.io/) durable execution.
+Use [Effect](https://effect.website/) services, typed errors, and Layers with
+[Resonate](https://resonatehq.io/) durable execution.
 
-Use the official [Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
-as the primary API and durability reference. This package preserves the async
-SDK's names and semantics, adding Effect only at the application boundary:
+The [Resonate TypeScript documentation](https://docs.resonatehq.io/develop/typescript)
+covers orchestration and durability. This package keeps the async SDK's names
+and behavior while adapting calls and resources to Effect:
 
 - SDK Promises and throwable synchronous methods become lazy `Effect`s with a
   typed `ResonateSdkError` channel.
 - `run`, `rpc`, and `get` still return handles; `handle.result()` and
   `handle.done()` are separate Effects.
 - `promises.*` and `schedules.*` retain the upstream namespaces and records.
-- the client lifecycle is a scoped Layer rather than `new Resonate()` plus
-  manual cleanup.
-- schema-aware workflows and steps are additive overloads, not replacements for
-  raw SDK calls.
+- The client lifecycle is a scoped Layer.
+- Typed workflows and steps add schema-aware overloads; raw SDK calls remain
+  available.
 
-The intended split is:
+Use each runtime for the work it owns:
 
 - Resonate owns durable orchestration, replay, timers, and distributed calls.
 - Effect owns application effects, typed errors, dependency injection, resources, tracing, and integrations.
@@ -28,14 +28,15 @@ The intended split is:
 
 ## Install
 
-Install core with Effect and the Resonate SDK. A network provider is required
-to acquire a client. For PostgreSQL, install `@effect-resonate/network-postgres`
-and `pg`, then follow its
-[setup guide](../network-postgres/README.md).
+Install core with Effect and the Resonate SDK:
 
 ```sh
 pnpm add @effect-resonate/core effect @resonatehq/sdk
 ```
+
+A client needs a network provider. For PostgreSQL, also install
+`@effect-resonate/network-postgres` and `pg`, then follow the
+[database setup guide](../network-postgres/README.md#database-setup).
 
 ## Durable contract guidance
 

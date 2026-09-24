@@ -24,6 +24,6 @@ export const NormalizeNameLive = NormalizeName.toLayer((name) =>
 )
 
 export const WelcomeLive = Welcome.toLayer(async (context, name) => {
-  const normalized = Result.getOrThrow(await context.run(NormalizeName, name))
-  return Result.succeed(`Welcome, ${normalized}!`)
+  const normalized = await context.run(NormalizeName, name)
+  return Result.map(normalized, (value) => `Welcome, ${value}!`)
 })
