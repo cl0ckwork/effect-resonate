@@ -1,6 +1,15 @@
 {
   "name": "@effect-resonate/core",
   "description": "Effect-native durable execution with Resonate",
+  "keywords": [
+    "effect",
+    "effect-ts",
+    "resonate",
+    "resonatehq",
+    "durable-execution",
+    "workflow",
+    "typescript"
+  ],
   "version": "0.1.0",
   "license": "MIT",
   "repository": {
