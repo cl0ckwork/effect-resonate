@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.dev.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/__tests__/**/*.types.ts"],
+  "exclude": []
+}

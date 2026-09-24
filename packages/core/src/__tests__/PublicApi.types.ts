@@ -123,6 +123,24 @@ type _FunctionHandlers = Assert<
   >
 >
 
+const WorkflowOnlyFunctions = ResonateFunctions.make(Checkout)
+type _WorkflowOnlyHandlers = Assert<
+  Equal<ResonateFunctions.Handlers<typeof WorkflowOnlyFunctions>, Workflow.Handler<typeof Checkout>>
+>
+
+const WorkflowPairFunctions = ResonateFunctions.make(Checkout, CheckoutV2)
+type _WorkflowPairHandlers = Assert<
+  Equal<
+    ResonateFunctions.Handlers<typeof WorkflowPairFunctions>,
+    Workflow.Handler<typeof Checkout> | Workflow.Handler<typeof CheckoutV2>
+  >
+>
+
+const StepOnlyFunctions = ResonateFunctions.make(Reserve)
+type _StepOnlyHandlers = Assert<
+  Equal<ResonateFunctions.Handlers<typeof StepOnlyFunctions>, Step.Handler<typeof Reserve>>
+>
+
 const ClientLayer = ResonateClient.layer({
   functions: CheckoutFunctions,
   drainTimeout: "30 seconds",
