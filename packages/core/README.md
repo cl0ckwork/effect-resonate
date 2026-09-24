@@ -26,6 +26,62 @@ The intended split is:
   workflow, step, and external-promise boundaries. Raw SDK values and original
   thrown errors remain upstream-owned.
 
+## Install
+
+After the first npm release, install core with Effect and the Resonate SDK. A
+network provider is also required to acquire a client; for PostgreSQL, install
+`@effect-resonate/network-postgres` and `pg` and follow its
+[setup guide](../network-postgres/README.md).
+
+```sh
+pnpm add @effect-resonate/core effect @resonatehq/sdk
+```
+
+## Durable contract guidance
+
+Workflow and step definitions are versioned persisted contracts. Use
+`Step.evolve` or `Workflow.evolve` when the input, success, failure, observable
+side effects, or durable workflow composition changes. Keep implementations
+for all versions that retained or in-flight executions may still call. A
+definition group is a flat, immutable registry of those contracts; supplying
+its handler Layers to `ResonateClient.layer` makes registration closed and
+validated before delivery begins.
+
+Root execution IDs identify logical invocations. Reusing an ID does not start a
+new invocation with different input or a different contract: Resonate retains
+the first durable record, and typed calls check the stored definition identity.
+Choose IDs and retention policy accordingly.
+
+Resonate owns retries and replay. A process can fail after an external side
+effect succeeds but before its result is durably recorded, so retried step
+effects should be idempotent where the external system allows it. The async
+SDK defaults to no retries; configure retry behavior deliberately. Cancellation
+of an Effect waiter does not cancel the durable execution.
+
+Inside a step implementation, `StepContext` exposes the Resonate step metadata.
+Its `id` is stable across delivery attempts for the same durable step; use it
+as an idempotency key in the external system. The wrapper cannot make an
+external write exactly once on its own.
+
+After a caller loses its connection or cancels a wait, look up the existing
+execution by its original ID and definition rather than inventing a new ID:
+
+```ts
+const handle = yield* ResonateClient.get("checkout-123", Checkout)
+const result = yield* handle.result()
+```
+
+`get` is an input-free lookup and does not create an execution. A failed
+activation request may already have committed, so retry `run` with the same
+ID and contract or use `get` to reconcile its outcome. A durable timeout does
+not prove an external side effect was cancelled; a late side effect may still
+finish after the timeout result is recorded.
+
+Workflow code should issue durable calls, sleeps, signals, and time/random
+operations through its Resonate context. Do not await ordinary I/O or timers
+and then issue another durable context operation: the async SDK closes that
+context when its pass suspends. Put arbitrary Effect work in registered steps.
+
 ## Contract evolution
 
 Persisted contracts never resolve an implicit "latest" version. Evolve a step

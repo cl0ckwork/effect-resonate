@@ -1,11 +1,22 @@
 {
   "name": "@effect-resonate/network-postgres",
+  "description": "PostgreSQL network adapter for Effect Resonate",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cl0ckwork/effect-resonate.git",
+    "directory": "packages/network-postgres"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "access": "public"

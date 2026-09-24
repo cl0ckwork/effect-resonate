@@ -21,6 +21,9 @@ test("the packed core artifact typechecks from root and subpath imports", (conte
   })
   const [{ filename }] = JSON.parse(packOutput)
   assert.equal(typeof filename, "string")
+  const packedEntries = execFileSync("tar", ["-tzf", join(fixtureRoot, filename)], { encoding: "utf8" })
+  assert.doesNotMatch(packedEntries, /__tests__|\.types\.js|postgres|testing/i)
+  assert.match(packedEntries, /package\/LICENSE\n/)
 
   const nodeModules = join(fixtureRoot, "node_modules")
   const packedCore = join(nodeModules, "@effect-resonate", "core")
@@ -112,9 +115,15 @@ void [
     cwd: fixtureRoot,
     stdio: "inherit"
   })
+  execFileSync("node", ["--input-type=module", "-e", "await import('@effect-resonate/core')"], {
+    cwd: fixtureRoot,
+    stdio: "inherit"
+  })
 
   const packedManifest = JSON.parse(readFileSync(join(packedCore, "package.json"), "utf8"))
   assert.ok(packedManifest.exports["./ResonateClient"])
+  assert.equal(packedManifest.peerDependencies.pg, undefined)
+  assert.equal(packedManifest.dependencies?.["@effect-resonate/testing"], undefined)
 })
 
 test("the packed Postgres provider typechecks from root and subpath imports", (context) => {
@@ -143,6 +152,7 @@ test("the packed Postgres provider typechecks from root and subpath imports", (c
   ]) {
     const entries = execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
     assert.doesNotMatch(entries, /__tests__|\.types\.js/)
+    assert.match(entries, /package\/LICENSE\n/)
     mkdirSync(destination, { recursive: true })
     execFileSync("tar", ["-xzf", archive, "-C", destination, "--strip-components=1"])
   }

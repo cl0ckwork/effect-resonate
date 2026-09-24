@@ -1,78 +1,58 @@
 # effect-resonate
 
-An Effect-native TypeScript integration for [Resonate](https://resonatehq.io/) durable execution.
+An Effect-facing integration for [Resonate](https://resonatehq.io/) durable
+execution. It keeps Resonate's async TypeScript SDK as the orchestration API and
+uses Effect for typed application failures, dependency layers, and scoped
+resource ownership.
 
-The repository is a lightweight pnpm monorepo. Its foundational package is:
+The core, Postgres provider, and Postgres conformance suite are implemented;
+the public npm packages have not yet had their first release.
 
-- [`@effect-resonate/core`](./packages/core) — the Effect/Resonate integration primitives.
+## Packages
 
-Additional packages should only be introduced when they represent a real runtime, dependency, or testing boundary rather than for architectural neatness.
+- [`@effect-resonate/core`](./packages/core) provides the client Layer,
+  versioned workflow and step contracts, schema-aware durable boundaries, and
+  the provider-neutral network service.
+- [`@effect-resonate/network-postgres`](./packages/network-postgres) adapts the
+  official SDK PostgreSQL network to that service.
+- [`@effect-resonate/testing`](./packages/testing) is private workspace support
+  for reusable provider conformance scenarios and their test harness.
 
-The intended split is simple:
+Resonate owns durable orchestration, replay, timers, retries, and distributed
+calls. Effect programs run in registered steps; workflow orchestration uses
+Resonate's ordinary `async`/`await` context methods. JSON-compatible values are
+the default durable data contract. Schemas and codecs are used at typed
+workflow, step, and external-promise boundaries where values cross durable
+storage or application trust boundaries.
 
-- **Resonate** owns durable orchestration, replay, timers, and distributed calls.
-- **Effect** owns application effects, typed errors, dependency injection, resources, tracing, and integration services.
-- **TypeScript** is the default contract between trusted workflow steps.
-- **Schema validation** is reserved for real trust boundaries such as workflow ingress and externally resolved signals.
-- **Codecs** are opt-in when durable values need a deliberate persistence / wire representation beyond JSON-compatible values.
+See the [core guide](./packages/core/README.md) and
+[Postgres provider guide](./packages/network-postgres/README.md) for setup and
+usage.
 
-The wrapper targets Resonate's `@resonatehq/sdk/async` engine. Effect generators stay inside Effect programs; Resonate durable workflows use normal `async` / `await`.
+## Development
 
-The first approved implementation keeps the core network-neutral and adds a
-separate Postgres provider package. Start with the
-[specification](./docs/specs/2026-09-15-001-core-async-postgres-spec.md) and
-[implementation plan](./docs/plans/2026-09-15-001-feat-core-async-postgres-plan.md).
-Supporting design notes cover the broader [architecture direction](./docs/BRAINSTORM.md),
-[Effect dependency graph](./docs/DEPENDENCY-GRAPH.md),
-[package topology](./docs/PACKAGING.md), future
-[execution inspection](./docs/EXECUTION-INSPECTION.md), and
-[release direction](./docs/RELEASE-BRAINSTORM.md).
-
-## Workspace
-
-```text
-packages/
-  core/              @effect-resonate/core
-  network-postgres/  @effect-resonate/network-postgres (planned)
-  testing/           private conformance support (planned)
-apps/
-  postgres-e2e/      private runtime acceptance app (planned)
-examples/            workspace consumers / integration examples (when added)
-docs/                specifications, plans, and design notes
-```
-
-Build tooling is intentionally bundler-free: `@effect-resonate/core` uses [`zshy`](https://github.com/colinhacks/zshy) to compile TypeScript and generate package exports.
-
-## Development setup
-
-The repository uses direnv for a cheap, repeatable shell environment and keeps
-AI-agent configuration in the committed `.agents/` directory.
-
-Install Node.js and [direnv](https://direnv.net/) first. The bootstrap installs
-the repository's pinned pnpm version when needed.
+Install Node.js and [direnv](https://direnv.net/), then bootstrap the worktree:
 
 ```sh
 direnv allow
 bash scripts/worktree-up
 ```
 
-`bash scripts/worktree-up` installs the pinned pnpm toolchain when needed, installs
-workspace dependencies, repairs agent-tool symlinks, and finishes with the
-read-only `pnpm run doctor` readiness check. It is idempotent and serializes
-concurrent setup in the same Git worktree.
+Run the checks and tests with:
 
-Repo-local agent workflows are available as `er-spec` for specifications and
-`er-plan` for implementation plans, and `er-review` for pre-commit or PR review.
-The review workflow has focused durability, correctness, Effect, testing,
-architecture, and repository-tooling agents. The official `effect-ts` skill is pinned
-in `skills-lock.json` alongside Resonate's philosophy, async TypeScript, and
-Temporal migration skills; worktree bootstrap restores all four. Specifications
-and plans are written under `docs/specs/` and `docs/plans/`.
+```sh
+pnpm check
+pnpm test
+```
 
-[Lefthook](https://lefthook.dev/) installs with the workspace dependencies. It
-checks staged whitespace and relevant TypeScript changes before commits, then
-runs typechecking and tests before pushes.
+`pnpm test` includes the Docker-backed Postgres integration suite. Set
+`SKIP_POSTGRES_TESTS=true` to omit that suite when Docker is unavailable.
 
-## Status
+## Project documents
 
-Brainstorm / pre-implementation.
+- [Packaging and package boundaries](./docs/PACKAGING.md)
+- [Architecture exploration](./docs/BRAINSTORM.md)
+- [Specifications](./docs/specs/)
+- [Implementation plans](./docs/plans/)
+- [Execution inspection direction](./docs/EXECUTION-INSPECTION.md)
+- [Release process](./docs/RELEASING.md)

@@ -4,6 +4,10 @@ This document captures the current packaging and release direction for `effect-r
 
 It is intentionally a brainstorm, not a frozen policy. The goal is to choose a setup that is boring, correct, and easy to evolve as the library grows.
 
+The implemented release process is documented in [RELEASING.md](./RELEASING.md).
+It uses stage-only npm trusted publishing with a maintainer's 2FA approval;
+the direct-publish flow below is historical design exploration.
+
 ## Direction
 
 Use **Effect's packaging philosophy**, but do not copy Effect's entire build pipeline.

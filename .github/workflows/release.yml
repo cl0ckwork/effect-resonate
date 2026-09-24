@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+permissions: {}
+
+jobs:
+  validate:
+    if: github.repository == 'cl0ckwork/effect-resonate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/setup@5d160c5bc68a09337ad0d5654e237e03253b5879 # v1
+        with:
+          runtime: node@24
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - name: Validate the generated version PR contents
+        run: |
+          pnpm version-packages
+          pnpm install --frozen-lockfile
+          pnpm check
+
+  version:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@5d160c5bc68a09337ad0d5654e237e03253b5879 # v1
+        with:
+          runtime: node@24
+          install: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Create or update release PR
+        id: changesets
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          version-script: pnpm version-packages
+          create-github-releases: false
+    outputs:
+      has_changesets: ${{ steps.changesets.outputs.has-changesets }}
+
+  stage:
+    needs: version
+    if: needs.version.outputs.has_changesets == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/setup@5d160c5bc68a09337ad0d5654e237e03253b5879 # v1
+        with:
+          runtime: node@24
+          install: false
+      - run: npm install --global npm@11.20.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - name: Stage unpublished package versions through npm OIDC
+        run: pnpm stage-packages
