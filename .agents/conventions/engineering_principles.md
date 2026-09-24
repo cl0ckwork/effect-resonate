@@ -117,6 +117,12 @@ Mutation is a bug factory — every reassignment is a place state can diverge fr
 - Avoid `try/catch` that forces mutation — `let x; try { x = ... } catch { ... }` is hard to read; prefer error channels or function returns.
 - Explicit data flow — if a value changes, it should be obvious where and why, not buried in a reassignment three branches deep.
 
+## Match Parameter Style to API Ownership
+
+- Use an options object for functions whose API we design. This keeps our arguments named as the function evolves.
+- When our function wraps a third-party API, preserve that API's calling style and argument order. This includes Resonate, Vitest, and other SDKs. A caller should be able to follow the upstream documentation through our wrapper.
+- For example, a Vitest helper should read `itest(name, effect, options?)`, like `it(name, effect, options?)`; do not replace it with `itest({ name, run })` just to follow the options-object preference.
+
 ## Design for Failure
 
 Everything fails. Design the failure modes explicitly, not as an afterthought. Before writing code, answer:

@@ -1,5 +1,10 @@
 import { fileURLToPath } from "node:url"
+import { Config, Effect } from "effect"
 import { defineConfig } from "vitest/config"
+
+const skipPostgres = Effect.runSync(Config.Boolean("SKIP_POSTGRES_TESTS").pipe(
+  Config.withDefault(false)
+))
 
 export default defineConfig({
   resolve: {
@@ -11,13 +16,35 @@ export default defineConfig({
       {
         find: /^@effect-resonate\/core\/(.*)$/,
         replacement: `${fileURLToPath(new URL("../core/src/", import.meta.url))}$1.ts`
+      },
+      {
+        find: /^@effect-resonate\/network-postgres$/,
+        replacement: fileURLToPath(new URL("../network-postgres/src/index.ts", import.meta.url))
       }
     ]
   },
   test: {
-    include: [
-      "src/**/__tests__/**/*.unit.ts",
-      "src/**/__tests__/**/*.integration.ts"
-    ]
+    projects: [
+      {
+        test: {
+          name: "unit",
+          include: ["src/**/__tests__/**/*.unit.ts"]
+        }
+      },
+      {
+        test: {
+          name: "integration",
+          include: ["src/**/__tests__/**/*.integration.ts"],
+          exclude: skipPostgres ? ["src/postgres/__tests__/PostgresNetworkScenarios.integration.ts"] : [],
+          globalSetup: skipPostgres ? [] : ["./src/postgres/globalSetup.ts"]
+        }
+      }
+    ],
+    pool: "threads",
+    maxWorkers: 2,
+    fileParallelism: false,
+    maxConcurrency: 1,
+    testTimeout: 90_000,
+    hookTimeout: 90_000
   }
 })

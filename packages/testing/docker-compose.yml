@@ -1,0 +1,36 @@
+services:
+  postgres:
+    build:
+      context: ./src/postgres/docker
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_cron
+      - -c
+      - cron.database_name=effect_resonate_test
+    environment:
+      POSTGRES_DB: effect_resonate_test
+      POSTGRES_USER: effect_resonate_test
+      POSTGRES_PASSWORD: effect_resonate_test_password
+    ports:
+      # Docker assigns a free loopback host port; global setup discovers it.
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U effect_resonate_test -d effect_resonate_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  integresql:
+    image: ghcr.io/allaboutapps/integresql@sha256:66b7433399f1907bad9e4b7cc7bd528ed4ebfccddecb8fd65da4af4d06a68c5a
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      INTEGRESQL_PGHOST: postgres
+      INTEGRESQL_PGUSER: effect_resonate_test
+      INTEGRESQL_PGPASSWORD: effect_resonate_test_password
+      INTEGRESQL_PGDATABASE: effect_resonate_test
+      INTEGRESQL_PORT: "5000"
+    ports:
+      - "127.0.0.1::5000"

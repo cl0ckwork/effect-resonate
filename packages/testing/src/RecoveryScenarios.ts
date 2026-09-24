@@ -80,6 +80,7 @@ export const replayRecovery: Effect.Effect<void, ConformanceFailure, NetworkHarn
   )
   const ClientLive = ResonateClient.layer({
     functions: Functions,
+    ttl: 5_000,
     drainTimeout: harness.timing.scenarioTimeout
   }).pipe(Layer.provide(dependencies))
 

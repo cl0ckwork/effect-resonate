@@ -64,8 +64,8 @@ package boundaries in [`docs/PACKAGING.md`](../PACKAGING.md).
   dependencies, configuration, conditionals, or fixtures. The separate
   `@effect-resonate/network-postgres` package wraps the SDK's official Postgres
   network and owns its `pg` peer. A private `@effect-resonate/testing` package
-  owns reusable provider-conformance scenarios, and a private
-  `apps/postgres-e2e` workspace composes those pieces for runtime acceptance.
+  owns reusable provider-conformance scenarios, and its `postgres/` test
+  directory composes those pieces for runtime acceptance.
 - **SC11 — Context surface.** Type and contract tests cover typed `run`/`rpc`,
   durable `sleep`, schema-decoded external promises, replay-stable time/random,
   read-only workflow/step metadata, and client operations that resolve, reject,
@@ -466,9 +466,9 @@ The database schema itself is trusted operational infrastructure. V1 detects
 missing/incompatible procedures at readiness and runtime but does not validate
 or repair arbitrary database corruption.
 
-## Postgres end-to-end acceptance environment
+## Postgres integration acceptance environment
 
-- `apps/postgres-e2e` runs the acceptance suite. It composes
+- `packages/testing/src/postgres` runs the acceptance suite. It composes
   `@effect-resonate/core`, `@effect-resonate/network-postgres`, and the reusable
   scenarios from the private `@effect-resonate/testing` package. Core and its
   tests contain no Postgres imports, branches, fixtures, or assertions.

@@ -8,6 +8,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test:types": "pnpm -r --if-present test:types",
     "test": "node --test tests/*.test.mjs && pnpm -r --if-present test",
+    "test:unit": "node --test tests/*.test.mjs && pnpm -r --if-present test:unit",
+    "test:integration": "pnpm -r --if-present test:integration",
     "check": "pnpm build && pnpm lint && pnpm typecheck && pnpm test:types",
     "doctor": "bash scripts/doctor",
     "worktree-up": "bash scripts/worktree-up"
