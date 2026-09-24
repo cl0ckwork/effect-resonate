@@ -23,7 +23,7 @@ Read only the guidance relevant to the work:
 Project direction and prior decisions live in:
 
 - `docs/ARCHITECTURE.md`: current execution model and durable behavior.
-- `docs/EXECUTION-INSPECTION.md`: future read-only execution graph and observability direction; not an API commitment.
+- `docs/planned-features/EXECUTION-INSPECTION.md`: future read-only execution graph and observability direction; not an API commitment.
 - `docs/PACKAGING.md`: current package topology and build direction.
 - `docs/RELEASING.md`: current release and npm staging process.
 

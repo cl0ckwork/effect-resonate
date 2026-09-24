@@ -13,10 +13,10 @@ The wrapper should expose those semantics clearly instead of inventing a fake Te
 ## Proposed API direction
 
 ```ts
-const execution = yield* ResonateClient.execution("checkout-123")
+const execution = yield * ResonateClient.execution("checkout-123")
 
-const graph = yield* execution.graph
-const timeline = yield* execution.timeline
+const graph = yield * execution.graph
+const timeline = yield * execution.timeline
 ```
 
 Potential node shape:
