@@ -1,7 +1,14 @@
-# Effect conventions
+# Learning more about Effect
 
-Before writing Effect code, read `node_modules/effect/AGENTS.md` completely and
-follow its linked guidance when required.
+This repository uses the Effect Typescript library.
+
+Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
+**completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect APIs and concepts that the
+guide doesn't cover, search through the source code in `node_modules/effect/src`.
+
+# Effect conventions
 
 When an Effect API or concept is unclear, inspect `node_modules/effect/src`
 instead of relying on remembered or older examples.

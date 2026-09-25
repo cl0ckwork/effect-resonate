@@ -216,6 +216,25 @@ importers:
         specifier: 5.0.1
         version: 5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2)(yaml@2.9.1))
 
+  examples/npm-consumer:
+    dependencies:
+      '@effect-resonate/core':
+        specifier: ^0.1.1
+        version: 0.1.1(@resonatehq/sdk@0.11.5(pg@8.23.0))(effect@4.0.0-rc.115)
+      '@resonatehq/sdk':
+        specifier: ^0.11.4
+        version: 0.11.5(pg@8.23.0)
+      effect:
+        specifier: 4.0.0-rc.115
+        version: 4.0.0-rc.115
+    devDependencies:
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2)(yaml@2.9.1))
+
   examples/postgres:
     dependencies:
       '@effect-resonate/core':
@@ -394,6 +413,13 @@ packages:
 
   '@devoxa/integresql-client@2.1.2':
     resolution: {integrity: sha512-BUDS1RfyNiJx4opztiGwxFYlVmW/UnL3SHUkhDdxmRSgfr1xkVPjxYRZIttcwH3pdjTSKS2Ur74G2PV8mdMVqA==}
+
+  '@effect-resonate/core@0.1.1':
+    resolution: {integrity: sha512-XQU5Fl/hkvn01MAgr5ZHBaHM46SKTvY0SsQm4Po/XVwGD8TsIzAbzrnvTQ2m1Cn06JW1HR51HEifw3jFbW/dLQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@resonatehq/sdk': ^0.11.4
+      effect: 4.0.0-rc.115
 
   '@effect/vitest@4.0.0-rc.115':
     resolution: {integrity: sha512-DJR0hfdr3HNXAkzW8AzfvUz6VmrNFLrKk9tZGDURi33faMyxkc7ZewxELMMZwGpOTGN4mfqYVbX2CXgI+ZJBeQ==}
@@ -1874,6 +1900,11 @@ snapshots:
   '@devoxa/integresql-client@2.1.2':
     dependencies:
       fast-glob: 3.3.3
+
+  '@effect-resonate/core@0.1.1(@resonatehq/sdk@0.11.5(pg@8.23.0))(effect@4.0.0-rc.115)':
+    dependencies:
+      '@resonatehq/sdk': 0.11.5(pg@8.23.0)
+      effect: 4.0.0-rc.115
 
   '@effect/vitest@4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.1(@types/node@22.20.4)(vite@8.3.0(@types/node@22.20.4)(yaml@2.9.1)))':
     dependencies:

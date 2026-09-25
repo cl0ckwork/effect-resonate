@@ -5,12 +5,15 @@ workflow. See [RELEASING.md](./RELEASING.md) for maintainer setup.
 
 ## Package boundaries
 
-The workspace contains one public package and one private test package:
+The workspace contains one public package, one private test package, and
+private runnable examples:
 
 ```text
 packages/
   core/     @effect-resonate/core
   testing/  @effect-resonate/testing (private)
+examples/
+  npm-consumer/  @effect-resonate/example-npm-consumer (uses published core)
 ```
 
 - `@effect-resonate/core` owns the client lifecycle, workflow and step
@@ -21,6 +24,10 @@ packages/
   recovery scenarios. It is private and is not a production dependency.
   `packages/testing/src/postgres` contains Docker, IntegreSQL, SQL fixtures, and
   the Postgres test harness.
+- `examples/npm-consumer` installs a released `@effect-resonate/core` version
+  from npm. The other examples use `workspace:*` and exercise the current
+  checkout. The packed-consumer check validates the current package tarball
+  separately before publication.
 
 Keep concepts such as `Workflow`, `Step`, `ResonateClient`, and
 `ResonateNetwork` as module entrypoints within core. Add a package only for a

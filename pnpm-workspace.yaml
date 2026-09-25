@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   # Lefthook's install script selects its platform binary and wires Git hooks.
   lefthook: true
+minimumReleaseAgeExclude:
+  - "@effect-resonate/core@0.1.1"
